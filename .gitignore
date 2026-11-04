@@ -1,0 +1,50 @@
+/.phpunit.cache
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/vendor
+.env
+.env.*
+!.env.example
+.env.backup
+.env.production
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log*
+yarn-error.log*
+*.log
+*.pem
+*.key
+*.p12
+*.pfx
+/credentials.json
+/secrets.json
+
+# Database exports and local database files
+*.sql
+*.sql.*
+*.sqlite
+*.sqlite3
+*.db
+
+# Runtime data and customer uploads
+/storage/users.json
+/public/images/expenses_pic/
+/public/images/products/
+/public/images/purchases_invoices/
+/public/images/profile_pic/*
+!/public/images/profile_pic/male.png
+!/public/images/profile_pic/female.png
+
+# Local scratch views
+/resources/views/home.blade copy.php
+/resources/views/main.blade copy.php
+/resources/views/test.html
+/resources/views/test2.html
+/.fleet
+/.idea
+/.vscode

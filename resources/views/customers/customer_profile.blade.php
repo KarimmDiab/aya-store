@@ -1,1063 +1,719 @@
 @extends('layouts.master')
-<title> معرض أيه - صفحة العميل </title>
+
+@section('title')
+    معرض أيه - صفحة العميل
+@endsection
 
 @section('css')
-	<style>
-		/* Table Styles */
-		.table {
-			font-size: 1rem;
-			background-color: #ffffff;
-			border-radius: 8px;
-			box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-		}
+<style>
+    /* ---------- Profile header ---------- */
+    .cp-profile { display:flex; flex-wrap:wrap; align-items:center; gap:18px; }
+    .cp-avatar {
+        width:76px; height:76px; border-radius:50%; flex:0 0 76px;
+        display:flex; align-items:center; justify-content:center;
+        background:linear-gradient(135deg,#0162e8,#4a90ff); color:#fff; font-size:32px; font-weight:700;
+        box-shadow:0 6px 16px rgba(1,98,232,.25);
+    }
+    .cp-name { margin:0 0 6px; font-weight:700; color:#1f2a44; }
+    .cp-tag { display:inline-block; padding:3px 12px; border-radius:50px; font-size:12px; font-weight:700; }
+    .cp-tag.regular { background:#e6f7ee; color:#13804a; }
+    .cp-tag.new     { background:#eaf2ff; color:#0162e8; }
+    .cp-contact { color:#5b6477; font-size:14px; margin-top:8px; }
+    .cp-contact a { color:#1f2a44; direction:ltr; unicode-bidi:embed; display:inline-block; }
+    .cp-contact a:hover { color:#0162e8; text-decoration:none; }
 
-		/* Table Header Styles */
-		.table th {
-			background-color: #343a40;
-			color: #ffffff;
-			text-align: center;
-			font-weight: bold;
-			padding: 12px 15px;
-		}
+    /* ---------- Stat cards ---------- */
+    .cp-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:20px; }
+    .cp-stat { background:#fff; border:1px solid #e6eaf2; border-radius:14px; padding:16px 18px; display:flex; align-items:center; gap:14px; }
+    .cp-stat .ico { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:19px; flex:0 0 46px; }
+    .cp-stat .lbl { font-size:12.5px; color:#8a93a6; margin-bottom:2px; }
+    .cp-stat .val { font-size:20px; font-weight:700; color:#1f2a44; line-height:1.2; }
+    .cp-stat .val small { font-size:12px; font-weight:500; color:#8a93a6; }
+    .ico-blue   { background:#eaf2ff; color:#0162e8; }
+    .ico-orange { background:#fff4e0; color:#e08a00; }
+    .ico-green  { background:#e6f7ee; color:#13804a; }
+    .ico-red    { background:#fdecee; color:#dc3545; }
+    .ico-purple { background:#f1ecff; color:#7c5ce0; }
+    .cp-stat.debt { border-color:#f5c6cb; background:#fffafa; }
 
-		.table.dataTable thead th {
-			color: #f9fbff !important;
-		}
-		/* Table Row Styles */
-		.table td {
-			text-align: center;
-			padding: 10px 15px;
-			vertical-align: middle;
-		}
+    /* ---------- Tabs ---------- */
+    .cp-tabs.nav-tabs { border-bottom:1px solid #e6eaf2; gap:4px; flex-wrap:wrap; }
+    .cp-tabs .nav-link {
+        border:0; border-bottom:3px solid transparent; color:#6b7385; font-weight:600;
+        padding:12px 16px; background:transparent;
+    }
+    .cp-tabs .nav-link:hover { color:#0162e8; }
+    .cp-tabs .nav-link.active { color:#0162e8; border-bottom-color:#0162e8; background:transparent; }
+    .cp-tabs .count {
+        display:inline-block; min-width:22px; padding:1px 7px; margin-right:6px; text-align:center;
+        background:#f1f2f6; color:#6b7385; border-radius:50px; font-size:12px;
+    }
+    .cp-tabs .nav-link.active .count { background:#eaf2ff; color:#0162e8; }
+    .cp-tab-intro { color:#8a93a6; font-size:13px; margin:18px 0 14px; }
 
-		/* Hover Effect for Rows */
-		.table tbody tr:hover {
-			background-color: #f8f9fa;
-		}
+    /* ---------- Tables ---------- */
+    .cp-table { width:100% !important; border-collapse:separate; border-spacing:0; }
+    .cp-table thead th {
+        background:#f7f9fc; color:#5b6477; font-size:13px; font-weight:600; white-space:nowrap;
+        text-align:center; border-top:0; border-bottom:1px solid #e6eaf2;
+    }
+    .cp-table tbody td { text-align:center; vertical-align:middle; font-size:14px; border-top:1px solid #f0f2f7; }
+    .cp-table tbody tr:hover { background:#fafbff; }
+    .cp-table .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .cp-table .btn { padding:5px 10px; font-size:13px; }
+    .cp-actions { white-space:nowrap; }
+    .money-due  { color:#dc3545; font-weight:700; }
+    .money-ok   { color:#13804a; font-weight:700; }
+    .cp-pill { display:inline-block; padding:3px 11px; border-radius:50px; font-size:12px; font-weight:600; white-space:nowrap; }
+    .pill-warning   { background:#fff4e0; color:#b26a00; }
+    .pill-success   { background:#e6f7ee; color:#13804a; }
+    .pill-primary   { background:#eaf2ff; color:#0162e8; }
+    .pill-secondary { background:#f1f2f6; color:#6b7385; }
+    .pill-info      { background:#e5f6fb; color:#0b7a96; }
+    .pill-danger    { background:#fdecee; color:#b02a37; }
 
-		/* Action Button Styles */
-		.table .btn {
-			padding: 8px 15px;
-			border-radius: 5px;
-			font-size: 14px;
-		}
+    .cp-empty { text-align:center; padding:46px 10px; color:#8a93a6; }
+    .cp-empty i { font-size:44px; display:block; margin-bottom:10px; opacity:.45; }
 
-		/* Button Hover Effect */
-		.table .btn:hover {
-			opacity: 0.85;
-		}
+    /* ---------- Modals ---------- */
+    .modal-content { border:0; border-radius:12px; overflow:hidden; box-shadow:0 20px 50px rgba(20,30,60,.2); }
+    .modal-header { border-bottom:1px solid #e6eaf2; background:#f7f9fc; }
+    .modal-header .modal-title { font-weight:700; color:#1f2a44; }
+    .modal-footer { background:#fafbfd; border-top:1px solid #eef0f6; }
+    .cp-kv-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:18px; }
+    .cp-kv { background:#f7f9fc; border-radius:10px; padding:10px 14px; }
+    .cp-kv .k { font-size:12px; color:#8a93a6; margin-bottom:2px; }
+    .cp-kv .v { font-size:15px; font-weight:700; color:#1f2a44; }
+    .cp-section-title { font-size:15px; font-weight:700; color:#0162e8; margin:18px 0 10px; }
+    .cp-mini th { background:#f7f9fc; font-size:13px; }
+    .cp-mini td, .cp-mini th { text-align:center; vertical-align:middle; }
+    .field-error { color:#dc3545; font-size:12px; margin-top:4px; }
+    .form-control.is-invalid { border-color:#dc3545; }
+    .btn.is-loading { pointer-events:none; opacity:.75; }
 
-		/* Modal Button Styles */
-		.btn-primary {
-			background-color: #007bff;
-			border-color: #007bff;
-		}
-
-		.btn-primary:hover {
-			background-color: #0056b3;
-			border-color: #0056b3;
-		}
-
-		/* Tooltip and Info Box */
-		.table .alert {
-			font-size: 16px;
-			border-radius: 8px;
-			background-color: #ffeeba;
-			color: #856404;
-		}
-
-		/* Responsive Design for Small Screens */
-		@media (max-width: 768px) {
-
-			.table th,
-			.table td {
-				font-size: 0.9rem;
-				padding: 8px;
-			}
-
-			.table .btn {
-				font-size: 12px;
-				padding: 6px 12px;
-			}
-		}
-	</style>
+    @media (max-width:576px) {
+        .cp-profile { flex-direction:column; text-align:center; }
+        .cp-tabs .nav-link { padding:10px 12px; font-size:14px; }
+    }
+</style>
 @endsection
+
 @section('page-header')
-	<!-- breadcrumb -->
-	<div class="breadcrumb-header justify-content-between">
-		<div class="my-auto">
-			<div class="d-flex">
-				<h4 class="content-title mb-0 my-auto">العملاء</h4><span class="text-muted mt-1 tx-13 mr-2 mb-0">/
-					صفحة العميل</span>
-			</div>
-		</div>
-
-	</div>
-	<!-- breadcrumb -->
+<!-- breadcrumb -->
+<div class="breadcrumb-header justify-content-between">
+    <div class="my-auto">
+        <div class="d-flex">
+            <h4 class="content-title mb-0 my-auto">العملاء</h4>
+            <span class="text-muted mt-1 tx-13 mr-2 mb-0">/ صفحة العميل</span>
+        </div>
+    </div>
+</div>
+<!-- breadcrumb -->
 @endsection
+
 @section('content')
+@php
+    $money = fn ($v) => number_format((float) $v, 2);
+
+    // payment method => [label, pill class]
+    $pmMap = [
+        'credit' => ['آجل', 'pill-warning'],
+        'cash'   => ['نقداً', 'pill-success'],
+        'visa'   => ['فيزا', 'pill-primary'],
+    ];
+    $pm = fn ($m) => $pmMap[$m] ?? ['غير محدد', 'pill-secondary'];
+
+    // credit settlement status (same rules as before)
+    $creditStatus = function ($inv) {
+        $paid = (float) ($inv->paid_amount ?? 0) + (float) ($inv->total_paid_transactions ?? 0);
+        if ($inv->outstanding_balance <= 0 && $paid <= 0) return ['لا توجد مديونية', 'pill-info'];
+        if ($inv->outstanding_balance <= 0)               return ['تمت التسوية بالكامل', 'pill-success'];
+        return ['لم يتم استكمال السداد', 'pill-warning'];
+    };
+
+    $customerId   = $customerInfo->id ?? null;
+    $isRegular    = ($invoicesInfo->invoices_number ?? 0) > 1;
+    $totalDebt    = collect($creditInvoices)->sum(fn ($i) => max(0, (float) $i->outstanding_balance));
+
+    // One details modal per invoice (credit invoices are merged in, de-duplicated)
+    $allInvoices  = collect($customerInvoices)->concat(collect($creditInvoices))->unique('sales_invoice_id');
+
+    // payment transactions grouped / keyed for the modals
+    $txByInvoice  = collect($transaction)->groupBy('sales_invoice_id');
+    $txById       = collect($transaction)->keyBy('id');
+
+    $reopen = $errors->any() ? old('_form') : null;
+@endphp
+
+<!-- Flash messages -->
+@if (session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle ml-1"></i> <strong>نجاح!</strong> {{ session('success') }}
+        <button type="button" class="close" data-dismiss="alert" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+    </div>
+@endif
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle ml-1"></i> <strong>خطأ!</strong> {{ session('error') }}
+        <button type="button" class="close" data-dismiss="alert" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+    </div>
+@endif
+@if ($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>يرجى تصحيح الأخطاء التالية:</strong>
+        <ul class="mb-0 pr-3">
+            @foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+        </ul>
+        <button type="button" class="close" data-dismiss="alert" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+    </div>
+@endif
+
+<div class="col-lg-12">
+
+    <!-- Profile -->
+    <div class="card mg-b-20">
+        <div class="card-body">
+            <div class="cp-profile">
+                <div class="cp-avatar">{{ mb_substr($customerInfo->name ?? '؟', 0, 1) }}</div>
+                <div>
+                    <h4 class="cp-name">{{ $customerInfo->name ?? 'لا يوجد اسم' }}</h4>
+                    <span class="cp-tag {{ $isRegular ? 'regular' : 'new' }}">{{ $isRegular ? 'عميل دائم' : 'عميل جديد' }}</span>
+                    <div class="cp-contact">
+                        <i class="fas fa-phone-alt ml-1"></i> رقم العميل:
+                        @if (!empty($customerInfo->contact_info))
+                            <a href="tel:{{ $customerInfo->contact_info }}">{{ $customerInfo->contact_info }}</a>
+                        @else
+                            —
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="cp-stats">
+        <div class="cp-stat">
+            <div class="ico ico-blue"><i class="fas fa-file-invoice"></i></div>
+            <div>
+                <div class="lbl">عدد الفواتير</div>
+                <div class="val">{{ $invoicesInfo->invoices_number }}</div>
+            </div>
+        </div>
+        <div class="cp-stat">
+            <div class="ico ico-green"><i class="fas fa-money-bill-wave"></i></div>
+            <div>
+                <div class="lbl">إجمالي مبلغ الفواتير</div>
+                <div class="val">{{ $money($invoicesInfo->total_all_invoices) }} <small>ج.م</small></div>
+            </div>
+        </div>
+        <div class="cp-stat">
+            <div class="ico ico-orange"><i class="fas fa-undo"></i></div>
+            <div>
+                <div class="lbl">إجمالي مبالغ المرتجعات</div>
+                <div class="val">{{ $money($invoicesInfo->total_returned) }} <small>ج.م</small></div>
+            </div>
+        </div>
+        <div class="cp-stat">
+            <div class="ico ico-purple"><i class="fas fa-clock"></i></div>
+            <div>
+                <div class="lbl">عدد الفواتير الآجلة</div>
+                <div class="val">
+                    @if ($noOfCredit > 0) {{ $noOfCredit }} @else <small>لا توجد فواتير آجلة</small> @endif
+                </div>
+            </div>
+        </div>
+        <div class="cp-stat {{ $totalDebt > 0 ? 'debt' : '' }}">
+            <div class="ico {{ $totalDebt > 0 ? 'ico-red' : 'ico-green' }}"><i class="fas fa-hand-holding-usd"></i></div>
+            <div>
+                <div class="lbl">إجمالي المديونية الحالية</div>
+                <div class="val {{ $totalDebt > 0 ? 'money-due' : 'money-ok' }}">{{ $money($totalDebt) }} <small>ج.م</small></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card">
+        <div class="card-body">
+            <ul class="nav nav-tabs cp-tabs" id="customerTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#home" data-toggle="tab" role="tab">
+                        <i class="fas fa-file-invoice ml-1"></i> الفواتير <span class="count">{{ $customerInvoices->count() }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#credit_invoice" data-toggle="tab" role="tab">
+                        <i class="fas fa-clock ml-1"></i> الفواتير الآجلة <span class="count">{{ $creditInvoices->count() }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#transactions" data-toggle="tab" role="tab">
+                        <i class="fas fa-exchange-alt ml-1"></i> حركات سداد الفواتير الآجلة <span class="count">{{ $cstTransaction->count() }}</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="tab-content pt-2">
+
+                {{-- ============ All invoices ============ --}}
+                <div class="tab-pane fade show active" id="home" role="tabpanel">
+                    <p class="cp-tab-intro">جميع الفواتير التي قام بها العميل.</p>
+                    @if ($customerInvoices->isNotEmpty())
+                        <div class="table-responsive">
+                            <table class="table cp-table" id="invoicesTable">
+                                <thead>
+                                    <tr>
+                                        <th>كود الفاتورة</th>
+                                        <th>تاريخ الفاتورة</th>
+                                        <th>طريقة الدفع</th>
+                                        <th>الصافي بعد المرتجعات</th>
+                                        <th>قيمة المرتجعات</th>
+                                        <th>الخصم</th>
+                                        <th>صافي المسدد بعد المرتجعات</th>
+                                        <th>المتبقي الحالي</th>
+                                        <th>تاريخ التسجيل</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($customerInvoices as $invoice)
+                                        @php [$pmLabel, $pmClass] = $pm($invoice->payment_method); @endphp
+                                        <tr>
+                                            <td><b>#{{ $invoice->sales_invoice_id }}</b></td>
+                                            <td class="num">{{ $invoice->invoice_date }}</td>
+                                            <td><span class="cp-pill {{ $pmClass }}">{{ $pmLabel }}</span></td>
+                                            <td class="num" data-order="{{ (float) $invoice->adjusted_total }}">{{ $money($invoice->adjusted_total) }}</td>
+                                            <td class="num" data-order="{{ (float) $invoice->total_returned }}">{{ $money($invoice->total_returned) }}</td>
+                                            <td class="num" data-order="{{ (float) $invoice->deduction }}">{{ $money($invoice->deduction) }}</td>
+                                            <td class="num" data-order="{{ (float) $invoice->total_paid_after_returns }}">{{ $money($invoice->total_paid_after_returns) }}</td>
+                                            <td class="num {{ $invoice->outstanding_balance > 0 ? 'money-due' : 'money-ok' }}" data-order="{{ (float) $invoice->outstanding_balance }}">
+                                                {{ $money($invoice->outstanding_balance) }}
+                                            </td>
+                                            <td class="num">{{ $invoice->created_at }}</td>
+                                            <td class="cp-actions">
+                                                <button type="button" class="btn btn-outline-info" data-toggle="modal"
+                                                        data-target="#invoiceModal{{ $invoice->sales_invoice_id }}">
+                                                    <i class="fas fa-eye"></i> التفاصيل
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="cp-empty"><i class="fas fa-file-invoice"></i>لا يوجد فواتير مسجلة لهذا العميل</div>
+                    @endif
+                </div>
+
+                {{-- ============ Credit invoices ============ --}}
+                <div class="tab-pane fade" id="credit_invoice" role="tabpanel">
+                    <p class="cp-tab-intro">جميع الفواتير الآجلة التي قام بها العميل، ومن هنا يمكنك تسجيل حركات السداد.</p>
+                    @if ($creditInvoices->isNotEmpty())
+                        <div class="table-responsive">
+                            <table class="table cp-table" id="creditTable">
+                                <thead>
+                                    <tr>
+                                        <th>كود الفاتورة</th>
+                                        <th>تاريخ الفاتورة</th>
+                                        <th>الخصم</th>
+                                        <th>الصافي بعد الخصم والمرتجعات</th>
+                                        <th>قيمة المرتجعات</th>
+                                        <th>صافي المسدد بعد المرتجعات</th>
+                                        <th>المديونية الحالية</th>
+                                        <th>حالة السداد</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($creditInvoices as $invoice)
+                                        @php [$stLabel, $stClass] = $creditStatus($invoice); @endphp
+                                        <tr>
+                                            <td><b>#{{ $invoice->sales_invoice_id }}</b></td>
+                                            <td class="num">{{ $invoice->invoice_date }}</td>
+                                            <td class="num" data-order="{{ (float) $invoice->deduction }}">{{ $money($invoice->deduction) }}</td>
+                                            <td class="num" data-order="{{ (float) $invoice->adjusted_total }}">{{ $money($invoice->adjusted_total) }}</td>
+                                            <td class="num" data-order="{{ (float) $invoice->total_returned }}">{{ $money($invoice->total_returned) }}</td>
+                                            <td class="num" data-order="{{ (float) $invoice->total_paid_after_returns }}">{{ $money($invoice->total_paid_after_returns) }}</td>
+                                            <td class="num {{ $invoice->outstanding_balance > 0 ? 'money-due' : 'money-ok' }}" data-order="{{ (float) $invoice->outstanding_balance }}">
+                                                {{ $money($invoice->outstanding_balance) }}
+                                            </td>
+                                            <td><span class="cp-pill {{ $stClass }}">{{ $stLabel }}</span></td>
+                                            <td class="cp-actions">
+                                                <button type="button" class="btn btn-outline-info" data-toggle="modal"
+                                                        data-target="#invoiceModal{{ $invoice->sales_invoice_id }}">
+                                                    <i class="fas fa-eye"></i> التفاصيل
+                                                </button>
+                                                @if ($invoice->outstanding_balance > 0)
+                                                    <button type="button" class="btn btn-success" data-toggle="modal"
+                                                            data-target="#addPaymentModal{{ $invoice->sales_invoice_id }}">
+                                                        <i class="fas fa-plus"></i> حركة سداد
+                                                    </button>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="cp-empty"><i class="fas fa-clock"></i>لا توجد فواتير آجلة لهذا العميل</div>
+                    @endif
+                </div>
+
+                {{-- ============ Payment transactions ============ --}}
+                <div class="tab-pane fade" id="transactions" role="tabpanel">
+                    <p class="cp-tab-intro">جميع حركات سداد الفواتير الآجلة التي قام بها العميل.</p>
+                    @if ($cstTransaction->isNotEmpty())
+                        <div class="table-responsive">
+                            <table class="table cp-table" id="txTable">
+                                <thead>
+                                    <tr>
+                                        <th>كود الحركة</th>
+                                        <th>كود الفاتورة</th>
+                                        <th>تاريخ السداد</th>
+                                        <th>المبلغ المدفوع</th>
+                                        <th>المبلغ المتبقي</th>
+                                        <th>ملاحظات</th>
+                                        <th>تاريخ التسجيل</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($cstTransaction as $row)
+                                        <tr>
+                                            <td>#{{ $row->id }}</td>
+                                            <td>#{{ $row->sales_invoice_id }}</td>
+                                            <td class="num">{{ $row->payment_date }}</td>
+                                            <td class="num money-ok" data-order="{{ (float) $row->amount_paid }}">{{ $money($row->amount_paid) }}</td>
+                                            <td class="num" data-order="{{ (float) $row->transaction_remaining_amount }}">{{ $money($row->transaction_remaining_amount) }}</td>
+                                            <td class="text-right">{{ $row->notes ?: '—' }}</td>
+                                            <td class="num">{{ $row->created_at }}</td>
+                                            <td class="cp-actions">
+                                                <button type="button" class="btn btn-outline-primary" data-toggle="modal"
+                                                        data-target="#editTxModal{{ $row->id }}">
+                                                    <i class="fas fa-edit"></i> تعديل
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="cp-empty"><i class="fas fa-exchange-alt"></i>لا يوجد عمليات سداد مسجلة لهذا العميل</div>
+                    @endif
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ==================================================================== --}}
+{{-- Modals — rendered once each, outside tables and tabs                 --}}
+{{-- ==================================================================== --}}
+
+{{-- Invoice details (shared by the "all invoices" and "credit" tabs) --}}
+@foreach ($allInvoices as $inv)
+    @php
+        [$pmLabel, $pmClass] = $pm($inv->payment_method);
+        $netTotal  = $inv->net_total ?? ((float) ($inv->total_amount ?? 0) - (float) ($inv->deduction ?? 0));
+        $invTx     = $txByInvoice->get($inv->sales_invoice_id, collect());
+        $showPayHx = $inv->payment_method === 'credit' || $invTx->isNotEmpty();
+    @endphp
+    <div class="modal fade" id="invoiceModal{{ $inv->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-file-invoice-dollar ml-1 text-primary"></i> تفاصيل الفاتورة #{{ $inv->sales_invoice_id }}</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="cp-kv-grid">
+                        <div class="cp-kv"><div class="k">تاريخ الفاتورة</div><div class="v">{{ $inv->invoice_date }}</div></div>
+                        <div class="cp-kv"><div class="k">اسم المستخدم</div><div class="v">{{ $inv->username ?? '—' }}</div></div>
+                        <div class="cp-kv"><div class="k">طريقة الدفع</div><div class="v"><span class="cp-pill {{ $pmClass }}">{{ $pmLabel }}</span></div></div>
+                    </div>
+
+                    <div class="cp-kv-grid">
+                        <div class="cp-kv"><div class="k">الإجمالي بعد الخصم</div><div class="v text-success">{{ $money($netTotal) }} جنيه</div></div>
+                        <div class="cp-kv"><div class="k">الخصم</div><div class="v text-danger">{{ $money($inv->deduction) }} جنيه</div></div>
+                        <div class="cp-kv"><div class="k">قيمة المرتجعات</div><div class="v text-warning">{{ $money($inv->total_returned) }} جنيه</div></div>
+                        <div class="cp-kv"><div class="k">الصافي بعد المرتجعات</div><div class="v">{{ $money($inv->adjusted_total) }} جنيه</div></div>
+                        <div class="cp-kv"><div class="k">صافي المسدد بعد المرتجعات</div><div class="v text-success">{{ $money($inv->total_paid_after_returns) }} جنيه</div></div>
+                        <div class="cp-kv"><div class="k">المتبقي / المديونية</div>
+                            <div class="v {{ $inv->outstanding_balance > 0 ? 'money-due' : 'money-ok' }}">{{ $money($inv->outstanding_balance) }} جنيه</div>
+                        </div>
+                    </div>
+
+                    <div class="cp-section-title"><i class="fas fa-box ml-1"></i> تفاصيل المنتجات</div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered cp-mini mb-0">
+                            <thead><tr><th>اسم المنتج</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
+                            <tbody>
+                                @forelse ($invoiceDetails->get($inv->sales_invoice_id, collect()) as $item)
+                                    <tr>
+                                        <td class="text-right">{{ $item->product_name }}</td>
+                                        <td>{{ $item->quantity }}</td>
+                                        <td>{{ $money($item->unit_price) }} جنيه</td>
+                                        <td>{{ $money($item->total_product) }} جنيه</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="4" class="text-muted">لا توجد منتجات</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if ($showPayHx)
+                        <div class="cp-section-title"><i class="fas fa-history ml-1"></i> سجل الدفعات</div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered cp-mini mb-0">
+                                <thead><tr><th>تاريخ السداد</th><th>المبلغ المدفوع</th><th>المبلغ المتبقي</th><th>ملاحظات</th></tr></thead>
+                                <tbody>
+                                    @forelse ($invTx as $t)
+                                        <tr>
+                                            <td>{{ $t->payment_date }}</td>
+                                            <td class="text-success">{{ $money($t->amount_paid) }} جنيه</td>
+                                            <td class="text-warning">{{ $money($t->transaction_remaining_amount) }} جنيه</td>
+                                            <td class="text-right">{{ $t->notes ?: 'لا يوجد' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr><td colspan="4" class="text-muted">لا يوجد دفعات سداد</td></tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    @include('customers.partials.invoice_returns', ['sourceInvoiceId' => $inv->sales_invoice_id])
+                </div>
+
+                <div class="modal-footer">
+                    <a href="{{ route('invoices.print', ['invoice_id' => $inv->sales_invoice_id, 'customer_id' => $customerId]) }}"
+                       class="btn btn-info" onclick="return openInvoicePopup(this.href);">
+                        <i class="fas fa-print ml-1"></i> طباعة
+                    </a>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">إغلاق</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endforeach
+
+{{-- Add payment (one per outstanding credit invoice) --}}
+@foreach ($creditInvoices as $inv)
+    @if ($inv->outstanding_balance > 0)
+        @php $formKey = 'pay'.$inv->sales_invoice_id; $isOld = old('_form') === $formKey; @endphp
+        <div class="modal fade" id="addPaymentModal{{ $inv->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered" role="document">
+                <form action="{{ route('customer.payments.store', ['sales_invoice_id' => $inv->sales_invoice_id, 'customer_id' => $customerId]) }}"
+                      method="POST" data-payment-form data-max="{{ (float) $inv->outstanding_balance }}" novalidate>
+                    @csrf
+                    <input type="hidden" name="_form" value="{{ $formKey }}">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="fas fa-money-bill-wave ml-1 text-success"></i> إضافة حركة سداد — فاتورة #{{ $inv->sales_invoice_id }}</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="cp-kv mb-3">
+                                <div class="k">المديونية الحالية على الفاتورة</div>
+                                <div class="v money-due">{{ $money($inv->outstanding_balance) }} جنيه</div>
+                            </div>
+                            <div class="form-group">
+                                <label>تاريخ السداد</label>
+                                <input type="date" class="form-control js-today" name="payment_date"
+                                       value="{{ $isOld ? old('payment_date') : '' }}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>المبلغ المدفوع</label>
+                                <input type="number" class="form-control" name="amount_paid" step="0.01" min="0.01"
+                                       max="{{ (float) $inv->outstanding_balance }}" inputmode="decimal"
+                                       value="{{ $isOld ? old('amount_paid') : '' }}" required>
+                            </div>
+                            <div class="form-group mb-0">
+                                <label>ملاحظات</label>
+                                <textarea class="form-control" name="notes" rows="3">{{ $isOld ? old('notes') : '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-success js-submit">حفظ</button>
+                            <button type="button" class="btn btn-light" data-dismiss="modal">إلغاء</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+@endforeach
+
+{{-- Edit payment transaction --}}
+@foreach ($cstTransaction as $row)
+    @php
+        $tx      = $txById->get($row->id);
+        $formKey = 'tx'.$row->id;
+        $isOld   = old('_form') === $formKey;
+        $txCustomerId = $tx->customer_id ?? $customerId;
+    @endphp
+    <div class="modal fade" id="editTxModal{{ $row->id }}" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <form action="{{ route('customer-payment-transactions.customerTransaction', ['customerId' => $txCustomerId, 'invoice_id' => $row->sales_invoice_id, 'transactionId' => $row->id]) }}"
+                  method="POST" data-payment-form novalidate>
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="_form" value="{{ $formKey }}">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-edit ml-1 text-primary"></i> تعديل حركة السداد #{{ $row->id }} — فاتورة #{{ $row->sales_invoice_id }}</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>تاريخ السداد</label>
+                            <input type="date" class="form-control" name="payment_date"
+                                   value="{{ $isOld ? old('payment_date') : ($tx->payment_date ?? $row->payment_date) }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>اسم المستخدم</label>
+                            <input type="text" class="form-control" value="{{ $tx->user_name ?? '—' }}" disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>المبلغ المدفوع</label>
+                            <input type="number" class="form-control" name="amount_paid" step="0.01" min="0.01" inputmode="decimal"
+                                   value="{{ $isOld ? old('amount_paid') : ($tx->amount_paid ?? $row->amount_paid) }}" required>
+                        </div>
+                        <div class="form-group mb-0">
+                            <label>ملاحظات</label>
+                            <textarea class="form-control" name="notes" rows="3">{{ $isOld ? old('notes') : ($tx->notes ?? $row->notes) }}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success js-submit">تحديث</button>
+                        <button type="button" class="btn btn-light" data-dismiss="modal">إلغاء</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+@endforeach
 
-	@if (session('success'))
-		<div class="alert alert-success alert-dismissible fade show" role="alert">
-			<strong>نجاح!</strong> {{ session('success') }}
-			<button type="button" class="close" data-dismiss="alert" aria-label="Close">
-				<span aria-hidden="true">&times;</span>
-			</button>
-		</div>
-	@endif
-
-	@if (session('error'))
-		<div class="alert alert-danger alert-dismissible fade show" role="alert">
-			<strong>خطأ!</strong> {{ session('error') }}
-			<button type="button" class="close" data-dismiss="alert" aria-label="Close">
-				<span aria-hidden="true">&times;</span>
-			</button>
-		</div>
-	@endif
-
-	<!-- row -->
-	<div class=" ">
-		<div class="col-lg-12">
-			<div class="card mg-b-20">
-				<div class="card-body">
-					<div class="pl-0">
-						<div class="main-profile-overview">
-							<div class="main-img-user profile-user">
-								<img alt="" src="{{URL::asset('images/general_pic/customer_pic.png')}}"><a
-									class="fas fa-camera profile-edit" href="JavaScript:void(0);"></a>
-							</div>
-							<div class="d-flex justify-content-between mg-b-20">
-								<div>
-									<h5 class="main-profile-name">{{ $customerInfo->name ?? 'No Name Available' }}</h5>
-									@if ($invoicesInfo->invoices_number > 1)
-										<p class="main-profile-name-text" style="margin-top : 10px ;">
-											<span
-												style="background-color: #8abb8a6b; color: #020202; padding: 5px 10px; border-radius: 15px; font-weight: bold;">عميل
-												دائم</span>
-										</p>
-									@else
-										<p class="main-profile-name-text" style="margin-top : 10px ;">
-											<span
-												style="background-color: #8abb8a6b; color: #020202; padding: 5px 10px; border-radius: 15px; font-weight: bold;">عميل
-												جديد</span>
-										</p>
-									@endif
-								</div>
-							</div>
-							<h6>رقم العميل</h6>
-							<div class="main-profile-bio">
-								{{ $customerInfo->contact_info }}
-							</div><!-- main-profile-bio -->
-
-							<hr class="mg-y-30">
-
-						</div><!-- main-profile-overview -->
-					</div>
-				</div>
-			</div>
-		</div>
-		<div class="col-lg-12">
-			<div class="row row-sm">
-				<div class="col-sm-12 col-xl-4 col-lg-12 col-md-12">
-					<div class="card ">
-						<div class="card-body">
-							<div class="counter-status d-flex md-mb-0">
-								<div class="" style="text-align: right;">
-									<h5 class="tx-13">عدد الفواتير</h5>
-									<h2 class="mb-0 tx-22 mb-1 mt-1">{{ $invoicesInfo->invoices_number }}</h2>
-								</div>
-								<div class="counter-icon bg-primary-transparent" style="margin-right: auto;">
-									<i class="icon-layers text-primary"></i>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-				<div class="col-sm-12 col-xl-4 col-lg-12 col-md-12">
-					<div class="card ">
-						<div class="card-body">
-							<div class="counter-status d-flex md-mb-0">
-
-								<div class="" style="text-align: right;">
-									<h5 class="tx-13">إجمالي مبلغ الفواتير</h5>
-									<h2 class="mb-0 tx-22 mb-1 mt-1">{{ $invoicesInfo->total_all_invoices }} ج.م</h2>
-								</div>
-								<div class="counter-icon bg-danger-transparent" style="margin-right: auto;">
-									<i class="fas fa-money-bill-wave text-success"></i>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-				<div class="col-sm-12 col-xl-4 col-lg-12 col-md-12">
-					<div class="card ">
-						<div class="card-body">
-							<div class="counter-status d-flex md-mb-0">
-
-								<div class="" style="text-align: right;">
-									<h5 class="tx-13">عدد الفواتير الاجل </h5>
-									@if ($noOfCredit > 0)
-										<h2 class="mb-0 tx-22 mb-1 mt-1">{{ $noOfCredit }}</h2>
-									@else
-										<h6 class="mb-0 tx-22 mb-1 mt-1">لا توجد فواتير أجلة</h6>
-									@endif
-								</div>
-								<div class="counter-icon bg-success-transparent" style="margin-right: auto;">
-									<i class="fas fa-file-invoice" style="color: #7071b3;"></i>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			<div class="card">
-				<div class="card-body">
-					<div class="tabs-menu ">
-						<!-- Tabs -->
-						<ul class="nav nav-tabs profile navtab-custom panel-tabs">
-							<li class="active">
-								<a href="#home" data-toggle="tab" aria-expanded="true"> <span class="visible-xs"><i
-											class="las la-user-circle tx-16 mr-1"></i></span> <span
-										class="hidden-xs">الفواتير</span> </a>
-							</li>
-							<li class="">
-								<a href="#credit_invoice" data-toggle="tab" aria-expanded="false"> <span
-										class="visible-xs"><i class="las la-images tx-15 mr-1"></i></span> <span
-										class="hidden-xs">الفواتير الأجلة</span> </a>
-							</li>
-							<li class="">
-								<a href="#transactions" data-toggle="tab" aria-expanded="false"> <span class="visible-xs"><i
-											class="las la-cog tx-16 mr-1"></i></span> <span class="hidden-xs">حركات سداد
-										الفواتير الأجلة</span> </a>
-							</li>
-						</ul>
-					</div>
-					<div class="tab-content border-left border-bottom border-right border-top-0 p-4">
-
-
-						<div class="tab-pane active" id="home">
-							<h4 class="tx-15 text-uppercase mb-3">الفواتير</h4>
-							<p class="m-b-5">هذا الجدول يحتوي علي جميع الفواتير التي فام بها العميل</p>
-							<!-- Invoice Table -->
-							<div class="table-responsive">
-								@if($customerInvoices->isNotEmpty())
-
-									<table class="table text-md-nowrap" id="example">
-										<thead>
-											<tr>
-												<th>كود الفاتورة</th>
-												<th>تاريخ الفاتورة</th>
-												<th>المبلغ</th>
-												<th>طريقة الدفع</th>
-												<th>الخصم</th>
-												<th>المبلغ المدفوع</th>
-												<th>Action</th>
-												<th>تاريخ تسجيل الفاتورة</th>
-											</tr>
-										</thead>
-										<tbody>
-											@foreach($customerInvoices as $invoice)
-												<tr>
-													<td>{{ $invoice->sales_invoice_id }}</td>
-													<!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->invoice_date }}</td>
-													<!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->total_amount }}</td>
-													<!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->payment_method }}</td>
-													<td>{{ $invoice->deduction }}</td>
-
-													<!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->paid_amount }}</td> <!-- Changed from $customer to $invoice -->
-													<td>
-														<!-- Button to show invoice details (using modal or another action) -->
-														<button class="btn btn-info btn-sm" data-toggle="modal"
-															data-target="#invoiceDetailsModal{{ $invoice->sales_invoice_id }}">
-															عرض التفاصيل
-														</button>
-													</td>
-													<td>{{ $invoice->created_at }}</td> <!-- Changed from $customer to $invoice -->
-												</tr>
-											@endforeach
-										</tbody>
-
-									</table>
-								@else
-									<div class="alert alert-warning text-center p-4" role="alert"
-										style="font-size: 18px; border-radius: 10px;">
-										<i class="fas fa-exclamation-circle" style="font-size: 24px; color: #ffc107;"></i>
-										<p class="mt-3" style="margin-bottom: 0; color: #856404;">
-											لا يوجد فواتير مسجلة لهذا العميل
-										</p>
-									</div>
-								@endif
-
-							</div>
-
-							<!-- Professional Modal Design for Invoice Details -->
-							@foreach ($customerInvoices as $customer)
-								<div class="modal fade" id="invoiceDetailsModal{{ $customer->sales_invoice_id }}" tabindex="-1"
-									role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-									<div class="modal-dialog modal-lg" role="document">
-										<div class="modal-content">
-											<!-- Modal Header -->
-											<div class="modal-header bg-primary text-white">
-												<h5 class="modal-title" id="exampleModalLabel">
-													<i class="fas fa-file-invoice-dollar"></i> تفاصيل الفاتورة -
-													{{ $customer->sales_invoice_id }}
-												</h5>
-												<button type="button" class="close text-white" data-dismiss="modal"
-													aria-label="Close">
-													<span aria-hidden="true">&times;</span>
-												</button>
-											</div>
-
-											<!-- Modal Body -->
-											<div class="modal-body">
-												<div class="container">
-													<div class="row mb-3">
-														<div class="col-md-6">
-															<h6><strong>تاريخ الفاتورة:</strong></h6>
-															<p>{{ $customer->invoice_date }}</p>
-														</div>
-														<div class="col-md-6">
-															<h6><strong>اسم المستخدم:</strong></h6>
-															<p>{{ $customer->username }}</p>
-														</div>
-													</div>
-													<div class="row mb-3">
-														<div class="col-md-6">
-															<h6><strong>المبلغ الإجمالي:</strong></h6>
-															<p class="text-success">
-																{{ number_format($customer->total_amount, 2) }} جنيه
-															</p>
-														</div>
-														<div class="col-md-6">
-															<h6><strong>طريقة الدفع:</strong></h6>
-															<p>
-																@if($customer->payment_method === 'credit')
-																	<span class="badge badge-warning">آجل</span>
-																@elseif($customer->payment_method === 'cash')
-																	<span class="badge badge-success">نقداً</span>
-																@elseif($customer->payment_method === 'visa')
-																	<span class="badge badge-primary">فيزا</span>
-																@else
-																	<span class="badge badge-secondary">غير محدد</span>
-																@endif
-															</p>
-														</div>
-													</div>
-													<div class="row mb-3">
-														<div class="col-md-4">
-															<h6><strong>الخصم:</strong></h6>
-															<p class="text-danger">{{ number_format($customer->deduction, 2) }}
-																جنيه</p>
-														</div>
-														<div class="col-md-4">
-															<h6><strong>الصافي:</strong></h6>
-															<p class="text-success">{{ number_format($customer->net_total, 2) }}
-																جنيه</p>
-														</div>
-														<div class="col-md-4">
-															<h6><strong>المبلغ المدفوع:</strong></h6>
-															<p class="text-success">
-																{{ number_format($customer->paid_amount, 2) }} جنيه
-															</p>
-														</div>
-													</div>
-													<div class="row mb-3">
-														<div class="col-md-6">
-															<h6><strong>المبلغ المتبقي:</strong></h6>
-															<p class="text-warning">
-																{{ number_format($customer->remaining_amount, 2) }} جنيه
-															</p>
-														</div>
-
-													</div>
-
-
-													<!-- Table for Invoice Items -->
-													<div class="table-responsive">
-														<table class="table table-bordered">
-															<thead class="table-primary">
-																<tr>
-																	<th>اسم المنتج</th>
-																	<th>الكمية</th>
-																	<th>سعر الوحدة</th>
-																	<th>الإجمالي</th>
-																</tr>
-															</thead>
-															<tbody>
-																@foreach ($invoiceDetails as $item)
-																	@if ($item->invoice_id == $customer->sales_invoice_id)
-																		<tr>
-																			<td>{{ $item->product_name }}</td>
-																			<td>{{ $item->quantity }}</td>
-																			<td>{{ number_format($item->unit_price, 2) }} جنيه</td>
-																			<td>{{ number_format($item->total_product, 2) }} جنيه</td>
-																		</tr>
-																	@endif
-																@endforeach
-															</tbody>
-														</table>
-													</div>
-												</div>
-											</div>
-
-											<!-- Modal Footer -->
-											<div class="modal-footer">
-												<!-- Print Sales Invoice Button -->
-												<form
-													action="{{ route('invoices.print', ['invoice_id' => $customer->sales_invoice_id, 'customer_id' => $customer->id]) }}"
-													method="get" style="display: inline;"
-													onsubmit="return openInvoicePopup(this);">
-													<button type="submit" class="btn btn-info">طباعة</button>
-												</form>
-												<!-- end print Sales Invoice Button -->
-												<button type="button" class="btn btn-secondary"
-													data-dismiss="modal">إغلاق</button>
-											</div>
-
-										</div>
-									</div>
-								</div>
-							@endforeach
-
-
-							<div id="printableInvoice{{ $customer->sales_invoice_id ?? ''}}">
-								<!-- Content of the invoice -->
-							</div>
-						</div>
-
-
-
-						<div class="tab-pane" id="credit_invoice">
-							<h4 class="tx-15 text-uppercase mb-3">الفواتير</h4>
-							<p class="m-b-5">هذا الجدول يحتوي علي جميع الفواتير الأجلة التي فام بها العميل</p>
-							<!-- Invoice Table -->
-							<div class="table-responsive">
-								@if($creditInvoices->isNotEmpty())
-
-													<table class="table text-md-nowrap" id="example1">
-														<thead>
-															<tr>
-																<th>كود الفاتورة</th>
-																<th>تاريخ الفاتورة</th>
-																<th>المبلغ</th>
-																<th>طريقة الدفع</th>
-																<th>المبلغ المدفوع</th>
-																<th>المبلغ المتبقي</th>
-																<th>حالة السداد</th>
-																<th>Action</th>
-															</tr>
-														</thead>
-														<tbody>
-															@foreach($creditInvoices as $invoice)
-																						<tr>
-																							<td>{{ $invoice->sales_invoice_id }}</td>
-																							<td>{{ $invoice->invoice_date }}</td>
-																							<td>{{ $invoice->total_amount }}</td>
-																							<td>{{ $invoice->payment_method }}</td>
-																							<td>{{ $invoice->paid_amount }}</td>
-																							<td>{{ $invoice->remaining_amount }}</td>
-
-																							<td>
-																								@if($invoice->total_paid >= $invoice->remaining_amount)
-																									<span class="badge badge-success"
-																										style="background-color: green; color: white; padding: 5px;">
-																										تم السداد بالكامل
-																									</span>
-																								@else
-																									<span class="badge badge-warning"
-																										style="background-color: yellow; color: black; padding: 5px;">
-																										لم يتم استكمال السداد
-																									</span>
-																								@endif
-																							</td>
-
-																							<td>
-																								<button class="btn btn-info btn-sm" data-toggle="modal"
-																									data-target="#creditDetailsModal{{ $invoice->sales_invoice_id }}">
-																									التفاصيل
-																								</button>
-																								<!-- Button to open "Add Payment" modal -->
-																								<button class="btn btn-success btn-sm" data-toggle="modal"
-																									data-target="#addPaymentModal{{ $invoice->sales_invoice_id }}">
-																									إضافة حركة سداد
-																								</button>
-
-																								<!-- Professional Modal Design for Invoice Details -->
-																								@foreach ($creditInvoices as $customer)
-																																	<div class="modal fade"
-																																		id="creditDetailsModal{{ $customer->sales_invoice_id }}" tabindex="-1"
-																																		role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-																																		<div class="modal-dialog modal-lg" role="document">
-																																			<div class="modal-content">
-																																				<!-- Modal Header -->
-																																				<div class="modal-header bg-primary text-white">
-																																					<h5 class="modal-title" id="exampleModalLabel">
-																																						<i class="fas fa-file-invoice-dollar"></i> تفاصيل
-																																						الفاتورة - {{ $customer->sales_invoice_id }}
-																																					</h5>
-																																					<button type="button" class="close text-white"
-																																						data-dismiss="modal" aria-label="Close">
-																																						<span aria-hidden="true">&times;</span>
-																																					</button>
-																																				</div>
-
-																																				<!-- Modal Body -->
-																																				<div class="modal-body">
-																																					<div class="container">
-																																						<div class="row mb-3">
-																																							<div class="col-md-6">
-																																								<h6><strong>تاريخ الفاتورة:</strong></h6>
-																																								<p>{{ $customer->invoice_date }}</p>
-																																							</div>
-																																							<div class="col-md-6">
-																																								<h6><strong>اسم المستخدم:</strong></h6>
-																																								<p>{{ $customer->username }}</p>
-																																							</div>
-																																						</div>
-																																						<div class="row mb-3">
-																																							<div class="col-md-6">
-																																								<h6><strong>المبلغ الإجمالي:</strong></h6>
-																																								<p class="text-success">
-																																									{{ number_format($customer->total_amount, 2) }}
-																																									جنيه
-																																								</p>
-																																							</div>
-																																							<div class="col-md-6">
-																																								<h6><strong>طريقة الدفع:</strong></h6>
-																																								<p>
-																																									@if($customer->payment_method === 'credit')
-																																										<span class="badge badge-warning">آجل</span>
-																																									@elseif($customer->payment_method === 'cash')
-																																										<span
-																																											class="badge badge-success">نقداً</span>
-																																									@elseif($customer->payment_method === 'visa')
-																																										<span
-																																											class="badge badge-primary">فيزا</span>
-																																									@else
-																																										<span class="badge badge-secondary">غير
-																																											محدد</span>
-																																									@endif
-																																								</p>
-																																							</div>
-																																						</div>
-																																						<div class="row mb-3">
-																																							<div class="col-md-4">
-																																								<h6><strong>الخصم:</strong></h6>
-																																								<p class="text-danger">
-																																									{{ number_format($customer->deduction, 2) }}
-																																									جنيه
-																																								</p>
-																																							</div>
-																																							<div class="col-md-4">
-																																								<h6><strong>الصافي:</strong></h6>
-																																								<p class="text-success">
-																																									{{ number_format($customer->net_total, 2) }}
-																																									جنيه
-																																								</p>
-																																							</div>
-																																							<div class="col-md-4">
-																																								<h6><strong>المبلغ المدفوع:</strong></h6>
-																																								<p class="text-success">
-																																									{{ number_format($customer->paid_amount, 2) }}
-																																									جنيه
-																																								</p>
-																																							</div>
-																																						</div>
-																																						<div class="row mb-3">
-																																							<div class="col-md-6">
-																																								<h6><strong>المبلغ المتبقي:</strong></h6>
-																																								<p class="text-warning">
-																																									{{ number_format($customer->remaining_amount, 2) }}
-																																									جنيه
-																																								</p>
-																																							</div>
-																																						</div>
-
-																																						<!-- Table for Invoice Items -->
-																																						<div class="table-responsive">
-																																							<h5 class="text-primary">تفاصيل المنتجات</h5>
-																																							<table class="table table-bordered">
-																																								<thead class="table-primary">
-																																									<tr>
-																																										<th>اسم المنتج</th>
-																																										<th>الكمية</th>
-																																										<th>سعر الوحدة</th>
-																																										<th>الإجمالي</th>
-																																									</tr>
-																																								</thead>
-																																								<tbody>
-																																									@foreach ($invoiceDetails as $item)
-																																										@if ($item->invoice_id == $customer->sales_invoice_id)
-																																											<tr>
-																																												<td>{{ $item->product_name }}</td>
-																																												<td>{{ $item->quantity }}</td>
-																																												<td>{{ number_format($item->unit_price, 2) }}
-																																													جنيه</td>
-																																												<td>{{ number_format($item->total_product, 2) }}
-																																													جنيه</td>
-																																											</tr>
-																																										@endif
-																																									@endforeach
-																																								</tbody>
-																																							</table>
-																																						</div>
-
-																																						<!-- Transaction History Table -->
-																																						<div class="table-responsive">
-																																							<h5 class="text-primary">سجل الدفعات</h5>
-																																							<table class="table table-bordered">
-																																								<thead class="table-success">
-																																									<tr>
-																																										<th>تاريخ السداد</th>
-																																										<th>المبلغ المدفوع</th>
-																																										<th>المبلغ المتبقي</th>
-																																										<th>ملاحظات</th>
-																																									</tr>
-																																								</thead>
-																																								<tbody>
-																																									@php
-																																										$transactionsFound = false;
-																																									@endphp
-																																									@foreach ($transaction as $transactions)
-																																																								@if ($transactions->sales_invoice_id == $customer->sales_invoice_id)
-																																																																							@php
-																																																																								$transactionsFound = true;
-																																																																							@endphp
-																																																																							<tr>
-																																																																								<td>{{ $transactions->payment_date }}
-																																																																								</td>
-																																																																								<td class="text-success">
-																																																																									{{ number_format($transactions->amount_paid, 2) }}
-																																																																									جنيه
-																																																																								</td>
-																																																																								<td class="text-warning">
-																																																																									{{ number_format($transactions->transaction_remaining_amount, 2) }}
-																																																																									جنيه
-																																																																								</td>
-																																																																								<td>{{ $transactions->notes ?? 'لا يوجد' }}
-																																																																								</td>
-																																																																							</tr>
-																																																								@endif
-																																									@endforeach
-																																									@if (!$transactionsFound)
-																																										<tr>
-																																											<td colspan="4" class="text-center">لا
-																																												يوجد دفعات سداد</td>
-																																										</tr>
-																																									@endif
-
-																																								</tbody>
-																																							</table>
-																																						</div>
-
-																																					</div>
-																																				</div>
-
-																																				<!-- Modal Footer -->
-																																				<div class="modal-footer">
-																																					<!-- Print Sales Invoice Button -->
-																																					<form
-																																						action="{{ route('invoices.print', ['invoice_id' => $customer->sales_invoice_id, 'customer_id' => $customer->id]) }}"
-																																						method="get" style="display: inline;"
-																																						onsubmit="return openInvoicePopup(this);">
-																																						<button type="submit"
-																																							class="btn btn-info">طباعة</button>
-																																					</form>
-																																					<!-- End Print Sales Invoice Button -->
-																																					<button type="button" class="btn btn-secondary"
-																																						data-dismiss="modal">إغلاق</button>
-																																				</div>
-
-																																			</div>
-																																		</div>
-																																	</div>
-																								@endforeach
-
-
-																								<!-- Add Payment Modal -->
-																								<div class="modal fade" id="addPaymentModal{{ $invoice->sales_invoice_id }}"
-																									tabindex="-1" role="dialog" aria-labelledby="addPaymentLabel"
-																									aria-hidden="true">
-																									<div class="modal-dialog" role="document">
-																										<div class="modal-content">
-																											<!-- Modal Header -->
-																											<div class="modal-header bg-success text-white">
-																												<h5 class="modal-title" id="addPaymentLabel">
-																													<i class="fas fa-money-bill-wave"></i> إضافة حركة سداد
-																												</h5>
-																												<button type="button" class="close text-white"
-																													data-dismiss="modal" aria-label="Close">
-																													<span aria-hidden="true">&times;</span>
-																												</button>
-																											</div>
-
-																											<!-- Modal Body -->
-																											<div class="modal-body">
-																												<form
-																													action="{{ route('customer.payments.store', ['sales_invoice_id' => $invoice->sales_invoice_id, 'customer_id' => $invoice->id]) }}"
-																													method="POST">
-																													@csrf
-
-																													<div class="form-group">
-																														<label for="payment_date">تاريخ السداد</label>
-																														<input type="date" class="form-control"
-																															name="payment_date" required>
-																													</div>
-
-																													<div class="form-group">
-																														<label for="amount_paid">المبلغ المدفوع</label>
-																														<input type="number" class="form-control"
-																															name="amount_paid" step="0.01" required>
-																													</div>
-
-																													<div class="form-group">
-																														<label for="notes">ملاحظات</label>
-																														<textarea class="form-control" name="notes"
-																															rows="3"></textarea>
-																													</div>
-
-																													<!-- Modal Footer -->
-																													<div class="modal-footer">
-																														<button type="submit"
-																															class="btn btn-success">حفظ</button>
-																														<button type="button" class="btn btn-secondary"
-																															data-dismiss="modal">إغلاق</button>
-																													</div>
-																												</form>
-																											</div>
-																										</div>
-																									</div>
-																								</div>
-
-																							</td>
-
-
-
-
-																						</tr>
-															@endforeach
-														</tbody>
-
-
-													</table>
-								@else
-									<div class="alert alert-warning text-center p-4" role="alert"
-										style="font-size: 18px; border-radius: 10px;">
-										<i class="fas fa-exclamation-circle" style="font-size: 24px; color: #ffc107;"></i>
-										<p class="mt-3" style="margin-bottom: 0; color: #856404;">
-											لا يوجد فواتير مسجلة لهذا العميل
-										</p>
-									</div>
-								@endif
-
-							</div>
-
-
-
-
-							<div id="printableInvoice{{ $customer->sales_invoice_id ?? '' }}">
-								<!-- Content of the invoice -->
-							</div>
-						</div>
-
-
-
-
-
-						<div class="tab-pane" id="transactions">
-							<h4 class="tx-15 text-uppercase mb-3">الفواتير</h4>
-							<p class="m-b-5">هذا الجدول يحتوي علي جميع حركات سداد الفواتير الأجلة التي فام بها العميل</p>
-
-
-							<!-- Invoice Table -->
-							<div class="table-responsive">
-								@if($cstTransaction->isNotEmpty())
-
-									<table class="table table-striped table-bordered table-hover" id="example1">
-										<thead class="thead-dark">
-											<tr>
-												<th>كود الحركة</th>
-												<th>كود الفاتورة</th>
-												<th>تاريخ السداد</th>
-												<th>المبلغ المدفوع</th>
-												<th>المبلغ المتبقي</th>
-												<th>ملاحظات</th>
-												<th>Action</th>
-												<th>تاريخ تسجيل الفاتورة</th>
-											</tr>
-										</thead>
-										<tbody>
-											@foreach($cstTransaction as $invoice)
-												<tr>
-													<td>{{ $invoice->id }}</td> <!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->sales_invoice_id }}</td>
-													<!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->payment_date }}</td>
-													<!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->amount_paid }}</td> <!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->transaction_remaining_amount }}</td>
-													<!-- Changed from $customer to $invoice -->
-													<td>{{ $invoice->notes }}</td> <!-- Changed from $customer to $invoice -->
-													<td>
-														<!-- Button to show invoice details (using modal or another action) -->
-														<button class="btn btn-info btn-sm" data-toggle="modal"
-															data-target="#transactionCreditDetailsModal{{ $invoice->id }}">
-															تعديل
-														</button>
-
-														<!-- Loop through customer payment transactions -->
-														@foreach ($transaction as $customer)
-															@if ($customer->id == $invoice->id)
-																<!-- Filter results to only show the relevant modal -->
-																<div class="modal fade" id="transactionCreditDetailsModal{{ $invoice->id }}"
-																	tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
-																	aria-hidden="true">
-																	<div class="modal-dialog modal-lg" role="document">
-																		<div class="modal-content">
-																			<!-- Modal Header -->
-																			<div class="modal-header bg-primary text-white">
-																				<h5 class="modal-title" id="exampleModalLabel">
-																					<i class="fas fa-file-invoice-dollar"></i> تعديل حركة
-																					السداد رقم {{ $customer->id }} - الفاتورة رقم
-																					{{ $customer->sales_invoice_id }}
-																				</h5>
-																				<button type="button" class="close text-white"
-																					data-dismiss="modal" aria-label="Close">
-																					<span aria-hidden="true">&times;</span>
-																				</button>
-																			</div>
-
-																			<!-- Modal Body -->
-																			<div class="modal-body">
-																				<form id="customerPaymentForm_{{ $customer->id }}"
-																					action="{{ route('customer-payment-transactions.customerTransaction', ['customerId' => $customer->customer_id, 'invoice_id' => $invoice->sales_invoice_id, 'transactionId' => $invoice->id]) }}"
-																					method="POST">
-																					@csrf
-																					@method('PUT')
-
-
-																					<div class="container">
-																						<!-- Payment Date -->
-																						<div class="row mb-3">
-																							<div class="col-md-6">
-																								<label
-																									for="payment_date_{{ $customer->id }}"
-																									class="form-label"><strong>تاريخ
-																										السداد:</strong></label>
-																								<input type="date"
-																									id="payment_date_{{ $customer->id }}"
-																									name="payment_date" class="form-control"
-																									value="{{ old('payment_date', $customer->payment_date) }}">
-																								<div class="text-danger"
-																									id="payment_date_error_{{ $customer->id }}">
-																								</div>
-																							</div>
-																							<div class="col-md-6">
-																								<label for="user_name_{{ $customer->id }}"
-																									class="form-label"><strong>اسم
-																										المستخدم:</strong></label>
-																								<input type="text"
-																									id="user_name_{{ $customer->id }}"
-																									class="form-control"
-																									value="{{ $customer->user_name }}"
-																									disabled>
-																							</div>
-																						</div>
-
-																						<!-- Amount Paid and Remaining Amount -->
-																						<div class="row mb-3">
-																							<div class="col-md-6">
-																								<label for="amount_paid_{{ $customer->id }}"
-																									class="form-label"><strong>المبلغ
-																										المدفوع:</strong></label>
-																								<input type="number"
-																									id="amount_paid_{{ $customer->id }}"
-																									name="amount_paid" class="form-control"
-																									step="0.01"
-																									value="{{ old('amount_paid', $customer->amount_paid) }}">
-																								<div class="text-danger"
-																									id="amount_paid_error_{{ $customer->id }}">
-																								</div>
-																							</div>
-
-																						</div>
-
-																						<!-- Notes -->
-																						<div class="row mb-3">
-																							<div class="col-md-12">
-																								<label for="notes_{{ $customer->id }}"
-																									class="form-label"><strong>ملاحظات:</strong></label>
-																								<textarea id="notes_{{ $customer->id }}"
-																									name="notes" class="form-control"
-																									rows="4">{{ old('notes', $customer->notes) }}</textarea>
-																								<div class="text-danger"
-																									id="notes_error_{{ $customer->id }}">
-																								</div>
-																							</div>
-																						</div>
-																					</div>
-
-																					<!-- Submit Button -->
-																					<div class="text-right">
-																						<button type="submit"
-																							class="btn btn-success">تحديث</button>
-																						<button type="button" class="btn btn-secondary"
-																							data-dismiss="modal">إغلاق</button>
-																					</div>
-																				</form>
-																			</div>
-																		</div>
-																	</div>
-																</div>
-															@endif
-														@endforeach
-
-														@if ($cstTransaction->isEmpty())
-															<div class="alert alert-warning text-center p-4" role="alert"
-																style="font-size: 18px; border-radius: 10px;">
-																<i class="fas fa-exclamation-circle"
-																	style="font-size: 24px; color: #ffc107;"></i>
-																<p class="mt-3" style="margin-bottom: 0; color: #856404;">
-																	لا يوجد عمليات سداد مسجلة لهذا العميل
-																</p>
-															</div>
-														@endif
-
-													</td>
-													<td>{{ $invoice->created_at }}</td> <!-- Changed from $customer to $invoice -->
-												</tr>
-											@endforeach
-										</tbody>
-									</table>
-
-
-
-
-
-								@else
-									<div class="alert alert-warning text-center p-4" role="alert"
-										style="font-size: 18px; border-radius: 10px;">
-										<i class="fas fa-exclamation-circle" style="font-size: 24px; color: #ffc107;"></i>
-										<p class="mt-3" style="margin-bottom: 0; color: #856404;">
-											لا يوجد عمليات سداد مسجلة لهذا العميل
-										</p>
-									</div>
-								@endif
-
-							</div>
-
-
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-	<!-- row closed -->
-	</div>
-	<!-- Container closed -->
-	</div>
-	<!-- main-content closed -->
 @endsection
+
 @section('js')
+<script src="{{ URL::asset('assets/plugins/datatable/js/jquery.dataTables.js') }}"></script>
+<script src="{{ URL::asset('assets/plugins/datatable/js/dataTables.bootstrap4.js') }}"></script>
+<script src="{{ URL::asset('assets/plugins/datatable/js/dataTables.responsive.min.js') }}"></script>
+<script src="{{ URL::asset('assets/plugins/datatable/js/responsive.bootstrap4.min.js') }}"></script>
 
+<script>
+/* Print popup (half width, full height) */
+function openInvoicePopup(url) {
+    var w = window.innerWidth, h = window.innerHeight, pw = w * 0.5;
+    window.open(url, '_blank', 'width=' + pw + ',height=' + h + ',left=' + ((w - pw) / 2) + ',top=0,scrollbars=yes');
+    return false;
+}
 
-	<!-- Internal Select2.min js -->
-	<script src="{{URL::asset('assets/plugins/select2/js/select2.min.js')}}"></script>
+$(function () {
 
-	<!-- Internal Data tables -->
-	<script src="{{URL::asset('assets/plugins/datatable/js/jquery.dataTables.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.dataTables.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.responsive.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/responsive.dataTables.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/jquery.dataTables.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.bootstrap4.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.buttons.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/buttons.bootstrap4.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/jszip.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/pdfmake.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/vfs_fonts.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/buttons.html5.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/buttons.print.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/buttons.colVis.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.responsive.min.js')}}"></script>
-	<script src="{{URL::asset('assets/plugins/datatable/js/responsive.bootstrap4.min.js')}}"></script>
-	<!--Internal  Datatable js -->
-	<script src="{{URL::asset('assets/js/table-data.js')}}"></script>
-	<!-- Internal form-elements js -->
-	<script src="{{URL::asset('assets/js/form-elements.js')}}"></script>
+    /* ---------- DataTables ---------- */
+    var arabic = {
+        search: '', searchPlaceholder: 'بحث...',
+        lengthMenu: 'عرض _MENU_',
+        info: 'عرض _START_ إلى _END_ من أصل _TOTAL_',
+        infoEmpty: 'لا توجد بيانات', infoFiltered: '(تمت التصفية من _MAX_)',
+        zeroRecords: 'لا توجد نتائج مطابقة',
+        paginate: { first: 'الأول', last: 'الأخير', next: 'التالي', previous: 'السابق' }
+    };
+    function initTable(sel, orderCol, noSortCol) {
+        if (!$(sel).length) return;
+        $(sel).DataTable({
+            order: [[orderCol, 'desc']],
+            pageLength: 10,
+            lengthMenu: [10, 25, 50],
+            columnDefs: [{ orderable: false, targets: noSortCol }],
+            language: arabic
+        });
+    }
+    initTable('#invoicesTable', 0, 9);
+    initTable('#creditTable',   0, 8);
+    initTable('#txTable',       0, 7);
 
-	<script>
-		function openInvoicePopup(form) {
-			// Get the form's action URL
-			const url = form.action;
+    // tables initialised inside hidden tabs need a width recalculation when shown
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+        try { sessionStorage.setItem('customerTab', $(e.target).attr('href')); } catch (err) {}
+    });
 
-			// Calculate 50% of the screen's width and 100% of the screen's height
-			const screenWidth = window.innerWidth;
-			const screenHeight = window.innerHeight;
-			const popupWidth = screenWidth * 0.5; // 50% of screen width
-			const popupHeight = screenHeight; // 100% of screen height
+    /* ---------- Restore last tab (e.g. after saving a payment) ---------- */
+    var wanted = null;
+    try { wanted = location.hash || sessionStorage.getItem('customerTab'); } catch (err) { wanted = location.hash; }
+    if (wanted && $('#customerTabs a[href="' + wanted + '"]').length) {
+        $('#customerTabs a[href="' + wanted + '"]').tab('show');
+    }
 
-			// Position the popup at the center horizontally, but full height
-			const left = (screenWidth - popupWidth) / 2;
+    /* ---------- Default today's date on new payments ---------- */
+    var d = new Date();
+    var today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    $('.js-today').each(function () { if (!this.value) this.value = today; });
 
-			// Open the popup
-			const popup = window.open(
-				url,
-				'_blank',
-				`width=${popupWidth},height=${popupHeight},left=${left},top=0,scrollbars=yes`
-			);
+    /* ---------- Reopen the modal whose server-side validation failed ---------- */
+    @if ($reopen && \Illuminate\Support\Str::startsWith($reopen, 'pay'))
+        $('#customerTabs a[href="#credit_invoice"]').tab('show');
+        $('#addPaymentModal{{ \Illuminate\Support\Str::after($reopen, 'pay') }}').modal('show');
+    @elseif ($reopen && \Illuminate\Support\Str::startsWith($reopen, 'tx'))
+        $('#customerTabs a[href="#transactions"]').tab('show');
+        $('#editTxModal{{ \Illuminate\Support\Str::after($reopen, 'tx') }}').modal('show');
+    @endif
 
-			// Return false to prevent the default form submission
-			return false;
-		}
-	</script>
+    /* ---------- Client-side validation for payment forms ---------- */
+    function showError($input, msg) {
+        $input.addClass('is-invalid');
+        $input.closest('.form-group').append('<div class="field-error">' + msg + '</div>');
+    }
+    function clearErrors(form) {
+        $(form).find('.field-error').remove();
+        $(form).find('.is-invalid').removeClass('is-invalid');
+    }
 
+    $('form[data-payment-form]').on('submit', function (e) {
+        var form = this, ok = true;
+        clearErrors(form);
 
-	<script>
-		document.getElementById("customerPaymentForm_{{ $customerInfo->id }}").addEventListener("submit", function (e) {
-			let isValid = true;
-			const errors = {
-				payment_date: "يرجى إدخال تاريخ صحيح.",
-				amount_paid: "يرجى إدخال المبلغ المدفوع بشكل صحيح.",
-				transaction_remaining_amount: "يرجى إدخال المبلغ المتبقي بشكل صحيح."
-			};
+        var $date   = $(form).find('[name="payment_date"]');
+        var $amount = $(form).find('[name="amount_paid"]');
+        var amount  = parseFloat($amount.val());
+        var max     = parseFloat($(form).data('max'));
 
-			// Validate Payment Date
-			const paymentDate = document.getElementById("payment_date_{{ $customerInfo->id }}").value;
-			if (!paymentDate) {
-				isValid = false;
-				document.getElementById("payment_date_error_{{ $customerInfo->id }}").innerText = errors.payment_date;
-			} else {
-				document.getElementById("payment_date_error_{{ $customerInfo->id }}").innerText = "";
-			}
+        if (!$date.val()) { ok = false; showError($date, 'يرجى إدخال تاريخ صحيح.'); }
+        if (isNaN(amount) || amount <= 0) {
+            ok = false; showError($amount, 'يرجى إدخال مبلغ مدفوع أكبر من صفر.');
+        } else if (!isNaN(max) && amount > max) {
+            ok = false; showError($amount, 'المبلغ المدفوع أكبر من المديونية الحالية (' + max.toFixed(2) + ' جنيه).');
+        }
 
-			// Validate Amount Paid
-			const amountPaid = document.getElementById("amount_paid_{{ $customerInfo->id }}").value;
-			if (!amountPaid || parseFloat(amountPaid) < 0) {
-				isValid = false;
-				document.getElementById("amount_paid_error_{{ $customerInfo->id }}").innerText = errors.amount_paid;
-			} else {
-				document.getElementById("amount_paid_error_{{ $customerInfo->id }}").innerText = "";
-			}
+        if (!ok) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            $(form).find('.is-invalid').first().focus();
+        }
+    });
 
-			// Validate Remaining Amount
-			const remainingAmount = document.getElementById("transaction_remaining_amount_{{ $customerInfo->id }}").value;
-			if (!remainingAmount || parseFloat(remainingAmount) < 0) {
-				isValid = false;
-				document.getElementById("transaction_remaining_amount_error_{{ $customerInfo->id }}").innerText = errors.transaction_remaining_amount;
-			} else {
-				document.getElementById("transaction_remaining_amount_error_{{ $customerInfo->id }}").innerText = "";
-			}
+    /* ---------- Prevent double submit ---------- */
+    $('form[data-payment-form]').on('submit', function (e) {
+        if (e.isDefaultPrevented()) return;
+        $(this).find('.js-submit').addClass('is-loading').prop('disabled', true)
+            .prepend('<span class="spinner-border spinner-border-sm ml-1" role="status"></span> ');
+    });
 
-			if (!isValid) {
-				e.preventDefault(); // Prevent form submission if validation fails
-			}
-		});
-	</script>
+    $('.modal').on('hidden.bs.modal', function () {
+        var f = $(this).find('form')[0];
+        if (f) clearErrors(f);
+    });
 
+    setTimeout(function () { $('.alert-success').fadeOut(400, function () { $(this).remove(); }); }, 5000);
+});
+</script>
 @endsection

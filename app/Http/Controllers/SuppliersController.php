@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\Suppliers; // Correct model namespace
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\PurchaseInvoiceService;
 
 class SuppliersController extends Controller
 {
@@ -33,33 +34,116 @@ class SuppliersController extends Controller
 
     public function creditSuppliers()
     {
+        $paymentTotals = DB::table('supplier_payments')
+            ->whereNull('supplier_payments.deleted_at')
+            ->select('supplier_payments.purchases_invoice_id')
+            ->selectRaw('COALESCE(SUM(supplier_payments.amount_paid), 0) AS total_paid')
+            ->selectRaw('MAX(COALESCE(supplier_payments.updated_at, supplier_payments.created_at)) AS last_payment_update')
+            ->groupBy('supplier_payments.purchases_invoice_id');
+
+        $creditInvoiceTotals = DB::table('purchase_invoices')
+            ->leftJoinSub($paymentTotals, 'payment_totals', function ($join) {
+                $join->on('payment_totals.purchases_invoice_id', '=', 'purchase_invoices.id');
+            })
+            ->whereNull('purchase_invoices.deleted_at')
+            ->where('purchase_invoices.payment_method', 'credit')
+            ->select('purchase_invoices.supplier_id')
+            ->selectRaw('COUNT(purchase_invoices.id) AS count_invoices')
+            ->selectRaw('COALESCE(SUM(purchase_invoices.total_amount), 0) AS total_all_invoices')
+            ->selectRaw('COALESCE(SUM(COALESCE(purchase_invoices.paid_amount, 0) + COALESCE(payment_totals.total_paid, 0)), 0) AS total_paid')
+            ->selectRaw('COALESCE(SUM(GREATEST(COALESCE(purchase_invoices.remaining_amount, 0) - COALESCE(payment_totals.total_paid, 0), 0)), 0) AS total_remaining')
+            ->selectRaw('MAX(purchase_invoices.updated_at) AS last_invoice_update')
+            ->selectRaw('MAX(payment_totals.last_payment_update) AS last_payment_update')
+            ->groupBy('purchase_invoices.supplier_id');
+
         $results = DB::table('suppliers')
-            ->leftJoin('purchase_invoices', 'suppliers.id', '=', 'purchase_invoices.supplier_id')
+            ->joinSub($creditInvoiceTotals, 'credit_totals', function ($join) {
+                $join->on('credit_totals.supplier_id', '=', 'suppliers.id');
+            })
+            ->whereNull('suppliers.deleted_at')
             ->select(
                 'suppliers.id',
                 'suppliers.name',
                 'suppliers.contact_info',
                 'suppliers.address',
-                'suppliers.updated_at',
-                DB::raw('ANY_VALUE(purchase_invoices.payment_method) AS payment_method'),
-                DB::raw('count(purchase_invoices.id) AS count_invoices'),
-                DB::raw('sum(purchase_invoices.total_amount) AS total_all_invoices')
+                'credit_totals.count_invoices',
+                'credit_totals.total_all_invoices',
+                'credit_totals.total_paid',
+                'credit_totals.total_remaining',
+                DB::raw('GREATEST(COALESCE(credit_totals.last_invoice_update, \'1970-01-01 00:00:00\'), COALESCE(credit_totals.last_payment_update, \'1970-01-01 00:00:00\')) AS last_invoice_activity_at'),
+                DB::raw("'credit' AS payment_method")
             )
-            ->whereNull('suppliers.deleted_at')
-            ->whereNull('purchase_invoices.deleted_at')
-            ->where('purchase_invoices.payment_method', '=', 'credit')
-            ->groupBy(
-                'suppliers.id',
-                'suppliers.name',
-                'suppliers.contact_info',
-                'suppliers.address'
-            )
+            ->orderByDesc('credit_totals.total_all_invoices')
             ->get();
 
-        return view('purchases.credit_suppliers', compact('results'));
+        $summary = (object) [
+            'total_invoices' => $results->sum('total_all_invoices'),
+            'total_paid' => $results->sum('total_paid'),
+            'total_remaining' => $results->sum('total_remaining'),
+        ];
+
+        return view('purchases.credit_suppliers', compact('results', 'summary'));
     }
 
 
+
+    private function allInvoicesForSupplier(int $supplierId)
+    {
+        $paymentTotals = DB::table('supplier_payments')
+            ->whereNull('supplier_payments.deleted_at')
+            ->select('supplier_payments.purchases_invoice_id')
+            ->selectRaw('COALESCE(SUM(supplier_payments.amount_paid), 0) AS total_amount_paid')
+            ->groupBy('supplier_payments.purchases_invoice_id');
+
+        return DB::table('purchase_invoices')
+            ->join('users', 'purchase_invoices.user_id', '=', 'users.id')
+            ->leftJoinSub($paymentTotals, 'payment_totals', function ($join) {
+                $join->on('payment_totals.purchases_invoice_id', '=', 'purchase_invoices.id');
+            })
+            ->whereNull('purchase_invoices.deleted_at')
+            ->where('purchase_invoices.supplier_id', $supplierId)
+            ->select(
+                'purchase_invoices.*',
+                'users.id AS user_id',
+                'users.name AS user_name',
+                DB::raw('COALESCE(payment_totals.total_amount_paid, 0) AS later_payments_amount'),
+                DB::raw('COALESCE(purchase_invoices.paid_amount, 0) + COALESCE(payment_totals.total_amount_paid, 0) AS total_paid_amount'),
+                DB::raw('GREATEST(COALESCE(purchase_invoices.remaining_amount, 0) - COALESCE(payment_totals.total_amount_paid, 0), 0) AS payment_remaning_amount')
+            )
+            ->orderByDesc('purchase_invoices.date')
+            ->orderByDesc('purchase_invoices.id')
+            ->get();
+    }
+
+    private function creditInvoicesForSupplier(int $supplierId)
+    {
+        $paymentTotals = DB::table('supplier_payments')
+            ->whereNull('supplier_payments.deleted_at')
+            ->select('supplier_payments.purchases_invoice_id')
+            ->selectRaw('COALESCE(SUM(supplier_payments.amount_paid), 0) AS total_amount_paid')
+            ->groupBy('supplier_payments.purchases_invoice_id');
+
+        return DB::table('purchase_invoices')
+            ->join('users', 'purchase_invoices.user_id', '=', 'users.id')
+            ->leftJoinSub($paymentTotals, 'payment_totals', function ($join) {
+                $join->on('payment_totals.purchases_invoice_id', '=', 'purchase_invoices.id');
+            })
+            ->whereNull('purchase_invoices.deleted_at')
+            ->where('purchase_invoices.supplier_id', $supplierId)
+            ->where('purchase_invoices.payment_method', 'credit')
+            ->select(
+                'purchase_invoices.*',
+                'purchase_invoices.id AS purchase_invoices_id',
+                'users.id AS user_id',
+                'users.name AS user_name',
+                DB::raw('COALESCE(payment_totals.total_amount_paid, 0) AS total_amount_paid'),
+                DB::raw('COALESCE(purchase_invoices.paid_amount, 0) + COALESCE(payment_totals.total_amount_paid, 0) AS total_paid_amount'),
+                DB::raw('GREATEST(COALESCE(purchase_invoices.remaining_amount, 0) - COALESCE(payment_totals.total_amount_paid, 0), 0) AS payment_remaning_amount')
+            )
+            ->orderByDesc('purchase_invoices.date')
+            ->orderByDesc('purchase_invoices.id')
+            ->get();
+    }
 
     public function printInvoice($invoice_no, $supplier_id)
     {
@@ -169,7 +253,7 @@ class SuppliersController extends Controller
         $suppliers = DB::table('suppliers')
             ->whereNull('deleted_at')
             ->where('id', $supplierId)
-            ->get();
+            ->first();
 
         //get all informations for the specific supplier
         $suppliersInfo = DB::table('suppliers')
@@ -216,16 +300,7 @@ class SuppliersController extends Controller
             ->get();
 
         // for first tab for all  invoices
-        $supplierPurchaseInvoice = DB::table('purchase_invoices')
-            ->join('users', 'purchase_invoices.user_id', '=', 'users.id') // Joining users table
-            ->select(
-                'purchase_invoices.*',
-                'users.id AS user_id',
-                'users.name AS user_name'
-            )
-            ->whereNull('purchase_invoices.deleted_at')
-            ->where('supplier_id', $supplierId) // Filter by supplier ID
-            ->get();
+        $supplierPurchaseInvoice = $this->allInvoicesForSupplier($supplierId);
 
         // for details table of credit invoices in first tab for all credit invoices
         $purchaseDetails = DB::table('suppliers')
@@ -262,22 +337,7 @@ class SuppliersController extends Controller
             ->get(); // Change from first() to get()
 
         // for second tab for all credit invoices only
-        $creditInvoiceNumbers = DB::table('purchase_invoices')
-            ->join('users', 'purchase_invoices.user_id', '=', 'users.id') // ربط جدول المستخدمين
-            ->leftJoin('supplier_payments', 'purchase_invoices.id', '=', 'supplier_payments.purchases_invoice_id') // ربط المدفوعات
-            ->select(
-                'purchase_invoices.*',
-                'purchase_invoices.id AS purchase_invoices_id',
-                'users.id AS user_id',
-                'users.name AS user_name',
-                'supplier_payment.payment_remaning_amount AS payment_remaning_amount',
-                DB::raw('COALESCE(SUM(supplier_payments.amount_paid), 0) AS total_amount_paid') // حساب مجموع المدفوعات
-            )
-            ->whereNull('purchase_invoices.deleted_at')
-            ->where('purchase_invoices.supplier_id', $supplierId) // تصفية حسب المورّد
-            ->where('purchase_invoices.payment_method', 'credit')
-            ->groupBy('purchase_invoices.id', 'users.id', 'users.name') // تجميع حسب الفاتورة والمستخدمين
-            ->get();
+        $creditInvoiceNumbers = $this->creditInvoicesForSupplier($supplierId);
 
 
         // for details table of credit invoices in second tab for all credit invoices
@@ -392,7 +452,7 @@ class SuppliersController extends Controller
             )
             ->whereNull('suppliers.deleted_at')
             ->whereNull('purchase_invoices.deleted_at')
-            ->where('purchase_invoices.payment_method')
+            ->where('purchase_invoices.payment_method', 'credit')
             ->where('suppliers.id', $supplierId)
             ->groupBy(
                 'suppliers.id',
@@ -404,16 +464,7 @@ class SuppliersController extends Controller
             ->get();
 
         // for first tab for all  invoices
-        $supplierPurchaseInvoice = DB::table('purchase_invoices')
-            ->join('users', 'purchase_invoices.user_id', '=', 'users.id') // Joining users table
-            ->select(
-                'purchase_invoices.*',
-                'users.id AS user_id',
-                'users.name AS user_name'
-            )
-            ->whereNull('purchase_invoices.deleted_at')
-            ->where('supplier_id', $supplierId) // Filter by supplier ID
-            ->get();
+        $supplierPurchaseInvoice = $this->allInvoicesForSupplier($supplierId);
 
         // for details table of credit invoices in first tab for all credit invoices
         $purchaseDetails = DB::table('suppliers')
@@ -450,30 +501,7 @@ class SuppliersController extends Controller
             ->get(); // Change from first() to get()
 
         // for second tab for all credit invoices only
-$creditInvoiceNumbers = DB::table('purchase_invoices')
-    ->join('users', 'purchase_invoices.user_id', '=', 'users.id')
-    ->leftJoin('supplier_payments', 'purchase_invoices.id', '=', 'supplier_payments.purchases_invoice_id')
-    ->select(
-        'purchase_invoices.*',
-        'purchase_invoices.id AS purchase_invoices_id',
-        'users.id AS user_id',
-        'users.name AS user_name',
-        DB::raw('
-            purchase_invoices.remaining_amount - COALESCE(SUM(supplier_payments.amount_paid), 0)
-            AS payment_remaning_amount
-        '),
-        DB::raw('COALESCE(SUM(supplier_payments.amount_paid), 0) AS total_amount_paid')
-    )
-    ->whereNull('purchase_invoices.deleted_at')
-    ->where('purchase_invoices.supplier_id', $supplierId)
-    ->where('purchase_invoices.payment_method', 'credit')
-    ->groupBy(
-        'purchase_invoices.id',
-        'purchase_invoices.remaining_amount', // مهم عشان تستخدمه في الحساب
-        'users.id',
-        'users.name'
-    )
-    ->get();
+        $creditInvoiceNumbers = $this->creditInvoicesForSupplier($supplierId);
 
         // for details table of credit invoices in second tab for all credit invoices
         $creditDetails = DB::table('suppliers')
@@ -518,23 +546,6 @@ $creditInvoiceNumbers = DB::table('purchase_invoices')
             ->where('supplier_payments.supplier_id', $supplierId)
             ->get();
 
-        $supplierCategories = DB::table('supplier_category_tb')
-            ->leftJoin('suppliers', 'supplier_category_tb.supplier_id', '=', 'suppliers.id')
-            ->leftJoin('category', 'supplier_category_tb.category_id', '=', 'category.category_id')
-            ->select(
-                'supplier_category_tb.supplier_id',
-                'suppliers.name',
-                'supplier_category_tb.category_id',
-                'category.category_name'
-            )
-            ->where('supplier_category_tb.supplier_id', $supplierId) // Change 20 to a dynamic supplier ID
-            ->get();
-
-        $products = DB::table('products')
-            ->whereNull('deleted_at')
-            ->get();
-
-
         return view('purchases.suppliers_profile', compact(
             'suppliers',
             'creditSuppliers',
@@ -543,9 +554,7 @@ $creditInvoiceNumbers = DB::table('purchase_invoices')
             'suppliersInfo',
             'transaction',
             'supplierPurchaseInvoice',
-            'creditDetails',
-            'supplierCategories',
-            'products'
+            'creditDetails'
         ));
 
     }
@@ -555,140 +564,39 @@ $creditInvoiceNumbers = DB::table('purchase_invoices')
 
     public function supplierPaymentStore(Request $request, $purchase_id, $supplier_id)
     {
-        // Validation rules with custom messages
-        $request->validate([
+        $data = $request->validate([
             'payment_date' => 'required|date',
             'amount_paid' => 'required|numeric|min:0.01',
             'notes' => 'nullable|string|max:255',
-        ], [
-            'payment_date.required' => 'يجب إدخال تاريخ السداد.',
-            'payment_date.date' => 'يجب أن يكون تاريخ السداد تاريخًا صحيحًا.',
-            'amount_paid.required' => 'يجب إدخال المبلغ المدفوع.',
-            'amount_paid.numeric' => 'يجب أن يكون المبلغ المدفوع رقمًا صالحًا.',
-            'amount_paid.min' => 'يجب أن يكون المبلغ المدفوع أكبر من 0.',
-            'notes.string' => 'يجب أن تكون الملاحظات نصًا فقط.',
-            'notes.max' => 'يجب ألا تتجاوز الملاحظات 255 حرفًا.',
         ]);
 
-        DB::beginTransaction();
-        try {
-            // Fetch the current remaining amount from purchase_invoices
-            $currentRemaining = DB::table('purchase_invoices')
-                ->where('id', $purchase_id)
-                ->value('remaining_amount');
+        app(PurchaseInvoiceService::class)->addPayment(
+            (string) $purchase_id,
+            (int) $supplier_id,
+            $data,
+            (int) auth()->id()
+        );
 
-            // Insert the new payment into supplier_payments
-            DB::table('supplier_payments')->insert([
-                'purchases_invoice_id' => $purchase_id,
-                'supplier_id' => $supplier_id,
-                'payment_date' => $request->input('payment_date'),
-                'amount_paid' => $request->input('amount_paid'),
-                'notes' => $request->input('notes'),
-                'user_id' => auth()->id(),
-                'payment_remaning_amount' => $currentRemaining, // Store previous remaining amount
-                'created_at' => now(),
-            ]);
-
-            // Calculate the new remaining amount using SUM of all payments
-            $totalPaid = DB::table('supplier_payments')
-                ->where('purchases_invoice_id', $purchase_id)
-                ->sum('amount_paid');
-
-            $newRemaining = $currentRemaining - $totalPaid;
-
-            // Update the latest supplier_payment record with the correct remaining amount
-            DB::table('supplier_payments')
-                ->where('purchases_invoice_id', $purchase_id)
-                ->orderBy('supplier_payments_id', 'desc')
-                ->limit(1)
-                ->update(['payment_remaning_amount' => $newRemaining]);
-
-            DB::commit();
-
-            return redirect()->back()->with('success', 'تم تسجيل الدفع بنجاح.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()->with('error', 'حدث خطأ أثناء تسجيل الدفع: ' . $e->getMessage());
-        }
-
+        return redirect()->back()->with('success', 'تم تسجيل حركة السداد وتحديث الرصيد بنجاح.');
     }
 
     public function updateSupplierPayment(Request $request, $supplierID, $invoice_id, $transactionId)
     {
-        // التحقق من صحة البيانات
-        $request->validate([
+        $data = $request->validate([
             'payment_date' => 'required|date',
             'amount_paid' => 'required|numeric|min:0.01',
             'notes' => 'nullable|string|max:255',
-        ], [
-            'payment_date.required' => 'يجب إدخال تاريخ السداد.',
-            'payment_date.date' => 'يجب أن يكون تاريخ السداد تاريخًا صحيحًا.',
-            'amount_paid.required' => 'يجب إدخال المبلغ المدفوع.',
-            'amount_paid.numeric' => 'يجب أن يكون المبلغ المدفوع رقمًا صالحًا.',
-            'amount_paid.min' => 'يجب أن يكون المبلغ المدفوع أكبر من 0.',
-            'notes.string' => 'يجب أن تكون الملاحظات نصًا فقط.',
-            'notes.max' => 'يجب ألا تتجاوز الملاحظات 255 حرفًا.',
         ]);
 
-        DB::beginTransaction();
-        try {
-            // جلب المبلغ السابق للدفعة
-            $previousPayment = DB::table('supplier_payments')
-                ->where('supplier_payments_id', $transactionId)
-                ->first();
+        app(PurchaseInvoiceService::class)->updatePayment(
+            (string) $invoice_id,
+            (int) $supplierID,
+            (int) $transactionId,
+            $data
+        );
 
-            if (!$previousPayment) {
-                return redirect()->back()->with('error', 'لم يتم العثور على الدفعة.');
-            }
-
-            // تحديث دفعة المورد
-            DB::table('supplier_payments')
-                ->where('supplier_payments_id', $transactionId)
-                ->update([
-                    'payment_date' => $request->input('payment_date'),
-                    'amount_paid' => $request->input('amount_paid'),
-                    'notes' => $request->input('notes'),
-                    'purchases_invoice_id' => $invoice_id,
-                    'supplier_id' => $supplierID,
-                    'purchases_invoice_id' => $invoice_id,
-                ]);
-
-            // حساب إجمالي المدفوعات بعد التحديث
-            $totalPaid = DB::table('supplier_payments')
-                ->where('purchases_invoice_id', $invoice_id)
-                ->sum('amount_paid');
-
-            // جلب إجمالي الفاتورة
-            $invoice = DB::table('purchase_invoices')
-                ->where('id', $invoice_id)
-                ->first();
-
-            if (!$invoice) {
-                return redirect()->back()->with('error', 'لم يتم العثور على الفاتورة.');
-            }
-
-            // حساب المبلغ المتبقي
-            $newRemaining = $invoice->remaining_amount - $totalPaid;
-
-            // تحديث المبلغ المتبقي في جدول الفواتير
-            DB::table('supplier_payments')
-                ->where('supplier_payments_id', $transactionId)
-                ->update([
-                    'payment_remaning_amount' => $newRemaining,
-                    'updated_at' => now(),
-                ]);
-
-            DB::commit();
-
-            return redirect()->back()->with('success', 'تم تحديث دفعة المورد بنجاح.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()->with('error', 'حدث خطأ أثناء تحديث الدفعة: ' . $e->getMessage());
-        }
+        return redirect()->back()->with('success', 'تم تحديث حركة السداد وتحديث أرصدة الحركات بنجاح.');
     }
-
-
-
     /**
      * Show the form for editing the specified resource.
      */
@@ -707,7 +615,8 @@ $creditInvoiceNumbers = DB::table('purchase_invoices')
             'name' => 'required|regex:/^[\pL\d\s]+$/u',  // Letters, numbers, and spaces only
             'address' => 'required|regex:/^[\pL\d\s]+$/u', // Letters, numbers, and spaces only
             'contact_info' => 'required|regex:/^01[0-9]{9}$/', // Starts with 01, followed by 9 digits
-            'supplier_category' => 'array|required', // Ensure supplier_category is an array and required
+            'supplier_category' => 'nullable|array',
+            'supplier_category.*' => 'integer|exists:category,category_id',
         ], [
             'name.required' => 'يجب إدخال الاسم.',
             'name.regex' => 'يجب أن يحتوي الاسم على حروف، أرقام ومسافات فقط.',
@@ -718,30 +627,28 @@ $creditInvoiceNumbers = DB::table('purchase_invoices')
             'supplier_category.required' => 'يجب اختيار تصنيف واحد على الأقل للمورد.',
         ]);
 
-        // Update supplier details
-        DB::table('suppliers')
-            ->where('id', $id)
-            ->update([
-                'name' => $request->name,
-                'address' => $request->address,
-                'contact_info' => $request->contact_info,
-                'updated_at' => now(),
-            ]);
+        DB::transaction(function () use ($request, $id) {
+            DB::table('suppliers')
+                ->where('id', $id)
+                ->whereNull('deleted_at')
+                ->update([
+                    'name' => $request->name,
+                    'address' => $request->address,
+                    'contact_info' => $request->contact_info,
+                    'updated_at' => now(),
+                ]);
 
-        // Update supplier categories
-        DB::table('supplier_category_tb')->where('supplier_id', $id)->delete(); // Remove old categories
-
-        $supplierCategories = [];
-        foreach ($request->supplier_category as $categoryId) {
-            $supplierCategories[] = [
-                'supplier_id' => $id,
-                'category_id' => $categoryId,
-
-            ];
-        }
-
-        // Insert new categories
-        DB::table('supplier_category_tb')->insert($supplierCategories);
+            // Forms that do not edit category assignments leave them untouched.
+            if ($request->has('supplier_category')) {
+                DB::table('supplier_category_tb')->where('supplier_id', $id)->delete();
+                $supplierCategories = collect($request->input('supplier_category', []))
+                    ->map(fn ($categoryId) => ['supplier_id' => $id, 'category_id' => $categoryId])
+                    ->all();
+                if ($supplierCategories) {
+                    DB::table('supplier_category_tb')->insert($supplierCategories);
+                }
+            }
+        });
 
         return redirect()->back()->with('success', 'تم تعديل بيانات المورد بنجاح');
     }
@@ -750,6 +657,14 @@ $creditInvoiceNumbers = DB::table('purchase_invoices')
     // Delete a supplier
     public function destroy($id)
     {
+        $hasInvoices = DB::table('purchase_invoices')
+            ->where('supplier_id', $id)
+            ->whereNull('deleted_at')
+            ->exists();
+        if ($hasInvoices) {
+            return redirect()->back()->with('error', 'لا يمكن حذف مورد لديه فواتير مشتريات مسجلة.');
+        }
+
         if (!is_array($id)) {
             $id = [$id];
         }

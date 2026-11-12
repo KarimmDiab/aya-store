@@ -1,49 +1,187 @@
 @extends('layouts.master2')
 <title> معرض أيه - فاتورة المبيعات </title>
-<style>
-    input[type="number"] {
-        -moz-appearance: textfield;
-    }
-
-    td.input {
-        border: none;
-        width: 50px;
-        /* Add a unit for width */
-    }
-</style>
 
 @section('css')
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="{{ URL::asset('assets/plugins/select2/css/select2.min.css') }}" rel="stylesheet">
+<style>
+    .pos {
+        --pos-primary: #4f46e5;
+        --pos-primary-dark: #4338ca;
+        --pos-primary-soft: #eef2ff;
+        --pos-success: #059669;
+        --pos-success-soft: #ecfdf5;
+        --pos-danger: #dc2626;
+        --pos-danger-soft: #fef2f2;
+        --pos-warning: #d97706;
+        --pos-warning-soft: #fffbeb;
+        --pos-text: #111827;
+        --pos-muted: #6b7280;
+        --pos-border: #e5e7eb;
+        --pos-bg: #f3f4f6;
+        --pos-card: #ffffff;
+        --pos-radius: 14px;
+        font-family: 'Cairo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        color: var(--pos-text);
+        direction: rtl;
+        text-align: right;
+    }
+    .pos *, .pos *::before, .pos *::after { box-sizing: border-box; }
+
+    /* Custom scrollbar */
+    .pos-scrollable { scrollbar-width: thin; scrollbar-color: #c7c9d1 transparent; }
+    .pos-scrollable::-webkit-scrollbar { width: 7px; }
+    .pos-scrollable::-webkit-scrollbar-track { background: transparent; }
+    .pos-scrollable::-webkit-scrollbar-thumb { background: #c7c9d1; border-radius: 10px; }
+    .pos-scrollable::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+    /* Alerts */
+    .pos-alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 14px; font-weight: 600; border: 1px solid transparent; }
+    .pos-alert.error { background: var(--pos-danger-soft); color: var(--pos-danger); border-color: #fecaca; }
+    .pos-alert.success { background: var(--pos-success-soft); color: var(--pos-success); border-color: #a7f3d0; }
+    .pos-alert ul { margin: 0; padding-inline-start: 18px; }
+
+    /* Layout */
+    .pos-grid { display: grid; grid-template-columns: minmax(0, 1fr) 410px; gap: 20px; align-items: start; }
+    @media (max-width: 1100px) { .pos-grid { grid-template-columns: 1fr; } }
+
+    .pos-card { background: var(--pos-card); border: 1px solid var(--pos-border); border-radius: var(--pos-radius); box-shadow: 0 1px 3px rgba(17,24,39,.05); }
+    .pos-card-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--pos-border); }
+    .pos-card-head h3 { margin: 0; font-size: 17px; font-weight: 700; }
+    .pos-card-body { padding: 20px; }
+
+    /* Products */
+    .pos-toolbar { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+    .pos-search { position: relative; }
+    .pos-search input { width: 100%; height: 46px; padding: 0 44px 0 14px; border: 1px solid var(--pos-border); border-radius: 12px; background: var(--pos-bg); font-family: inherit; font-size: 15px; transition: .15s; }
+    .pos-search input:focus { outline: none; background: #fff; border-color: var(--pos-primary); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
+    .pos-search svg { position: absolute; top: 50%; right: 14px; transform: translateY(-50%); width: 20px; height: 20px; color: var(--pos-muted); pointer-events: none; }
+
+    .pos-cats { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+    .pos-cat { flex: 0 0 auto; padding: 8px 18px; border: 1px solid var(--pos-border); background: #fff; border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--pos-muted); cursor: pointer; transition: .15s; }
+    .pos-cat:hover { border-color: var(--pos-primary); color: var(--pos-primary); }
+    .pos-cat.active { background: var(--pos-primary); border-color: var(--pos-primary); color: #fff; }
+
+    .pos-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+    .pos-product { display: flex; flex-direction: column; border: 1px solid var(--pos-border); border-radius: 12px; background: #fff; overflow: hidden; cursor: pointer; transition: .18s; position: relative; text-align: center; }
+    .pos-product:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(17,24,39,.1); border-color: var(--pos-primary); }
+    .pos-product:active { transform: translateY(-1px) scale(.99); }
+    .pos-product-img { aspect-ratio: 1 / 1; background: var(--pos-bg); }
+    .pos-product-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pos-stock { position: absolute; top: 10px; right: 10px; padding: 3px 10px; font-size: 12px; font-weight: 700; border-radius: 999px; background: var(--pos-success-soft); color: var(--pos-success); }
+    .pos-stock.low { background: var(--pos-warning-soft); color: var(--pos-warning); }
+    .pos-product-info { padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .pos-product-name { font-size: 15px; font-weight: 700; line-height: 1.4; margin: 0; }
+    .pos-product-code { font-size: 12px; color: var(--pos-muted); }
+    .pos-product-code strong { color: var(--pos-text); }
+    .pos-product-price { font-size: 16px; font-weight: 700; color: var(--pos-primary); }
+    .pos-product-price small { font-size: 12px; color: var(--pos-muted); font-weight: 600; }
+    .pos-add { margin-top: auto; width: 100%; padding: 9px; border: none; border-radius: 9px; background: var(--pos-primary-soft); color: var(--pos-primary); font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer; transition: .15s; }
+    .pos-product:hover .pos-add { background: var(--pos-primary); color: #fff; }
+    .pos-empty { grid-column: 1 / -1; text-align: center; padding: 50px 10px; color: var(--pos-muted); }
+
+    /* ===== Cart panel: fixed (sticky) with internal scrollbars ===== */
+    .pos-cart { position: sticky; top: 70px; }
+    .pos-cart-form {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 90px);   /* fixed height = always fits the screen */
+        min-height: 480px;
+        overflow: hidden;
+    }
+    .pos-cart-form .pos-card-head { flex: 0 0 auto; }
+
+    /* Cart items: own scrollbar */
+    .pos-cart-list {
+        flex: 1 1 auto;
+        min-height: 120px;
+        max-height: 38%;
+        overflow-y: auto;
+        padding: 6px 20px;
+        border-bottom: 1px solid var(--pos-border);
+    }
+
+    /* Totals: always visible under the cart items */
+    .pos-sum { flex: 0 0 auto; margin: 0; padding: 12px 20px; background: var(--pos-bg); border-bottom: 1px solid var(--pos-border); }
+
+    /* Customer & payment fields: own scrollbar */
+    .pos-fields { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 20px 16px; }
+
+    /* Confirm area: always visible at the bottom */
+    .pos-foot { flex: 0 0 auto; padding: 12px 20px 14px; border-top: 1px solid var(--pos-border); background: #fff; }
+
+    @media (max-width: 1100px) {
+        .pos-cart { position: static; }
+        .pos-cart-form { height: auto; overflow: visible; }
+        .pos-cart-list { max-height: 320px; flex: none; }
+        .pos-fields { overflow: visible; }
+    }
+
+    .pos-badge { background: var(--pos-primary-soft); color: var(--pos-primary); padding: 3px 12px; border-radius: 999px; font-weight: 700; font-size: 13px; }
+    .pos-cart-empty { text-align: center; padding: 26px 10px; color: var(--pos-muted); }
+    .pos-cart-empty svg { width: 44px; height: 44px; opacity: .45; margin-bottom: 6px; }
+    .pos-line { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 12px 0; border-bottom: 1px dashed var(--pos-border); }
+    .pos-line:last-child { border-bottom: none; }
+    .pos-line-name { font-weight: 700; font-size: 14px; }
+    .pos-line-unit { font-size: 12px; color: var(--pos-muted); }
+    .pos-line-total { font-weight: 700; font-size: 15px; text-align: left; }
+    .pos-line-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+    .pos-qty { display: inline-flex; align-items: center; border: 1px solid var(--pos-border); border-radius: 10px; overflow: hidden; }
+    .pos-qty button { width: 32px; height: 32px; border: none; background: var(--pos-bg); font-size: 18px; font-weight: 700; cursor: pointer; line-height: 1; font-family: inherit; }
+    .pos-qty button:hover { background: var(--pos-primary-soft); color: var(--pos-primary); }
+    .pos-qty input { width: 48px; height: 32px; border: none; text-align: center; font-weight: 700; font-family: inherit; -moz-appearance: textfield; background: #fff; }
+    .pos-qty input::-webkit-outer-spin-button, .pos-qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .pos-remove { border: none; background: none; color: var(--pos-danger); font-family: inherit; font-weight: 600; font-size: 13px; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+    .pos-remove:hover { background: var(--pos-danger-soft); }
+
+    .pos-sum-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 14px; color: var(--pos-muted); font-weight: 600; }
+    .pos-sum-row.grand { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--pos-border); font-size: 19px; color: var(--pos-text); font-weight: 700; }
+    .pos-sum-row.grand span:last-child { color: var(--pos-primary); }
+
+    .pos-section-title { font-size: 14px; font-weight: 700; margin: 16px 0 10px; color: var(--pos-muted); }
+    .pos-field { margin-bottom: 12px; }
+    .pos-field label.lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--pos-text); }
+    .pos-input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--pos-border); border-radius: 10px; font-family: inherit; font-size: 14px; background: #fff; transition: .15s; }
+    .pos-input:focus { outline: none; border-color: var(--pos-primary); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
+    .pos-input:disabled { background: var(--pos-bg); color: var(--pos-muted); }
+    .pos-input.invalid { border-color: var(--pos-danger); }
+    .pos-error { display: block; color: var(--pos-danger); font-size: 12px; margin-top: 4px; }
+
+    .pos-segment { display: grid; gap: 8px; }
+    .pos-segment.two { grid-template-columns: 1fr 1fr; }
+    .pos-segment.three { grid-template-columns: repeat(3, 1fr); }
+    .pos-segment input { position: absolute; opacity: 0; pointer-events: none; }
+    .pos-segment label { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; border: 1.5px solid var(--pos-border); border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; transition: .15s; background: #fff; text-align: center; margin: 0; }
+    .pos-segment label:hover { border-color: var(--pos-primary); }
+    .pos-segment input:checked + label { border-color: var(--pos-primary); background: var(--pos-primary-soft); color: var(--pos-primary); }
+    .pos-segment input:focus-visible + label { box-shadow: 0 0 0 3px rgba(79,70,229,.25); }
+
+    .pos-remaining { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--pos-warning-soft); color: var(--pos-warning); border-radius: 10px; font-weight: 700; margin-bottom: 4px; }
+
+    .pos-submit { width: 100%; height: 48px; border: none; border-radius: 12px; background: var(--pos-success); color: #fff; font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer; transition: .15s; }
+    .pos-submit:hover { background: #047857; }
+    .pos-submit:disabled { background: #9ca3af; cursor: not-allowed; }
+    .pos-clear { width: 100%; margin-top: 6px; padding: 6px; border: none; background: none; color: var(--pos-muted); font-family: inherit; font-weight: 600; cursor: pointer; border-radius: 10px; }
+    .pos-clear:hover { background: var(--pos-bg); color: var(--pos-danger); }
+    .d-none-pos { display: none !important; }
+</style>
 @endsection
+
 @section('page-header')
 
-    <!-- breadcrumb -->
-    <div class="breadcrumb-header justify-content-between">
-        <div class="my-auto">
-            <div class="d-flex">
-                <h4 class="content-title mb-0 my-auto">المبيعات</h4><span class="text-muted mt-1 tx-13 mr-2 mb-0">/ فاتورة
-                    المبيعات</span>
-            </div>
-        </div>
-
-    </div>
-    <!-- breadcrumb -->
 @endsection
+
 @section('content')
+<div class="pos">
 
     @if(session('error'))
-        <div class="alert alert-danger">
-            {{ session('error') }}
-        </div>
+        <div class="pos-alert error">{{ session('error') }}</div>
     @endif
-
     @if(session('success'))
-        <div class="alert alert-success">
-            {{ session('success') }}
-        </div>
+        <div class="pos-alert success">{{ session('success') }}</div>
     @endif
-
     @if($errors->any())
-        <div class="alert alert-danger">
+        <div class="pos-alert error">
             <ul>
                 @foreach($errors->all() as $error)
                     <li>{{ $error }}</li>
@@ -52,555 +190,492 @@
         </div>
     @endif
 
+    <div class="pos-grid">
 
-
-    <div id="error_message" style="display: none; color: red;"></div>
-    <!-- Modal for Success Message -->
-    <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title" id="successModalLabel">عملية بيع ناجحة</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <p>تمت عملية البيع بنجاح!</p>
-                    <button id="printInvoice" class="btn btn-primary">طباعة الفاتورة</button>
-                </div>
+        <!-- ===================== Products ===================== -->
+        <section class="pos-card">
+            <div class="pos-card-head">
+                <h3>المنتجات</h3>
+                <span class="pos-badge" id="visible-count">0 منتج</span>
             </div>
-        </div>
-    </div>
-
-    <!-- row -->
-    <div class="row">
-        <!-- Order Summary Section -->
-        <div class="col-md-4">
-            <!-- Begin Form -->
-            <input type="hidden" id="hidden_order_items" name="order_items" />
-            <div id="order_items_container"></div>
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <b>عربة الشراء</b>
-                        </div>
-
+            <div class="pos-card-body">
+                <div class="pos-toolbar">
+                    <div class="pos-search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                        <input type="text" id="product-search" placeholder="بحث عن منتج بالاسم أو الكود..." autocomplete="off">
                     </div>
-                </div>
-
-                <div class="card-body">
-                    <!-- Cart Table -->
-                    <div class="cart mb-4">
-                        <table class="table table-bordered">
-                            <thead>
-                                <tr>
-                                    <th>اسم المنتج</th>
-                                    <th>الكمية</th>
-                                    <th>سعر الوحدة</th>
-                                    <th>الإجمالي</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="cart-items">
-                                <tr>
-                                    <td colspan="5">عربة الشراء فارغة</td>
-                                </tr>
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="3" class="text-end" dir="rtl"><strong>الإجمالي</strong></td>
-                                    <td colspan="2"><span id="total">0</span></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-
-                    </div>
-
-                    <!-- Customer Details & Payment -->
-                    <form id="checkout-form" method="post" action="{{ route('submit_order') }}">
-                        @csrf
-                        <!-- Cart items table will be dynamically filled in JavaScript -->
-                        <input type="hidden" id="totalField" name="total" value="">
-                        <input type="hidden" id="finalTotalField" name="finalTotal" value="">
-                        <input type="hidden" name="cart" value="">
-
-                        <h2>بيانات العميل</h2>
-
-                        <label for="datetime">Choose date & time:</label>
-                        <input class="form-control" type="datetime-local" id="datetime" name="datetime">
-
-                        <!-- اختيار نوع العميل -->
-                        <div class="mb-3">
-                            <label class="form-label">نوع العميل</label>
-                            <div>
-                                <input type="radio" id="new-customer" name="customer_type" value="new" checked>
-                                <label for="new-customer">عميل جديد</label>
-
-                                <input type="radio" id="existing-customer" name="customer_type" value="existing">
-                                <label for="existing-customer">عميل دائم</label>
-                            </div>
-                        </div>
-
-                        <!-- اسم العميل -->
-                        <div class="mb-3">
-                            <label for="name" class="form-label">اسم العميل</label>
-                            <input type="text" id="name" name="customer[name]" class="form-control"
-                                placeholder="ادخل اسم العميل" required>
-                            <span id="name-validation" class="text-danger"></span>
-                        </div>
-
-                        <!-- رقم الموبايل -->
-                        <div class="mb-3" id="phone-container">
-                            <label for="phone" class="form-label">الموبايل</label>
-                            <input type="tel" id="phone" name="customer[phone]" class="form-control" placeholder="الموبايل"
-                                dir="rtl" >
-                            <span id="phone-validation" class="text-danger"></span>
-                        </div>
-
-                        <!-- القائمة المنسدلة لرقم الهاتف (لعملاء دائمين) -->
-                        <div class="mb-3 d-none" id="existing-customer-container">
-                            <label for="existing-phone" class="form-label">اختر رقم العميل</label>
-                            <select id="existing-phone" class="form-control">
-                                <option value="">-- اختر رقم الهاتف --</option>
-                                @foreach ($customers as $customer)
-                                    <option value="{{ $customer->contact_info }}" data-name="{{ $customer->name }}">
-                                        {{ $customer->contact_info }} - {{ $customer->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <!-- Deduction Input -->
-                        <div class="mb-3">
-                            <label for="deduction" class="form-label">الخصم ( اختياري )</label>
-                            <input type="number" id="deduction" name="deduction" class="form-control"
-                                placeholder="ادخل مبلغ الخصم" min="0" oninput="updateFinalTotal()">
-                            <span id="deduction-validation" class="text-danger"></span>
-                        </div>
-
-                        <p><strong>إجمالي الفاتورة بعد الخصم : <span id="final-total">0</span></strong> ج.م </p>
-
-                        <!-- Payment Methods -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Payment Method</label>
-                            <div class="d-flex gap-4 align-items-center">
-                                <!-- Cash Option -->
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" name="paymentMethod" value="cash" id="cash"
-                                        required onclick="toggleCreditInput(false)">
-                                    <label class="form-check-label " for="cash">Cash</label>
-                                </div>
-                                <!-- Visa Option -->
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" name="paymentMethod" value="visa" id="visa"
-                                        onclick="toggleCreditInput(false)">
-                                    <label class="form-check-label " for="visa">Visa</label>
-                                </div>
-                                <!-- Credit Option -->
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="radio" name="paymentMethod" value="credit"
-                                        id="credit" onclick="toggleCreditInput(true)">
-                                    <label class="form-check-label " for="credit">Credit</label>
-                                </div>
-                            </div>
-                        </div>
-
-
-                        <div class="mb-3" id="credit-input" style="display: none;">
-                            <label for="pay-amount" class="form-label">المبلغ المدفوع</label>
-                            <input type="number" id="pay-amount" name="payAmount" class="form-control"
-                                placeholder="Enter payment amount" min="0" oninput="calculateRemaining()">
-                            <span id="pay-amount-validation" class="text-danger"></span>
-                        </div>
-                        <p><strong>المبلغ المتبقي : <span id="remaining-amount-display">0</span></strong> ج.م </p>
-                        <span id="required-fields-validation" class="text-danger"></span>
-                        <button type="submit" class="btn btn-success w-100">تأكيد</button>
-
-                    </form>
-
-
-                </div>
-
-            </div>
-        </div>
-
-
-        <!-- Item Section -->
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <b>المنتجات</b>
-                </div>
-
-                <div class="card-body">
-                    <!-- Search Input -->
-                    <div class="mb-3">
-                        <input type="text" id="product-search" class="form-control"
-                            placeholder="بحث عن منتج بالاسم أو الكود...">
-                    </div>
-
-                    <!-- Category Buttons -->
-                    <div class="mb-3">
-                        <button type="button" class="btn btn-outline-primary mb-2 category-btn"
-                            data-category="all">All</button>
+                    <div class="pos-cats">
+                        <button type="button" class="pos-cat category-btn active" data-category="all">الكل</button>
                         @foreach($categories as $category)
-                            <button type="button" class="btn btn-outline-primary mb-2 category-btn"
-                                data-category="{{ $category->category_id }}">
+                            <button type="button" class="pos-cat category-btn" data-category="{{ $category->category_id }}">
                                 {{ $category->category_name }}
                             </button>
                         @endforeach
                     </div>
+                </div>
 
-                    <!-- Product Cards -->
-                    <div class="row" id="product-list">
-                        @foreach($products as $product)
-                            @if($product->quantity > 0) <!-- Only display products with a quantity greater than 0 -->
-                                <div class="col-lg-3 col-md-4 col-sm-6 col-sm-12 mb-3 product-item"
-                                    data-category="{{ $product->category }}" data-name="{{ $product->name }}"
-                                    data-id="{{ $product->id }}">
-                                    <div class="card" style="align-items: center;">
-                                        <img src="{{ asset('images/products/' . ($product->image ?: 'item.png')) }}"
-                                            class="card-img-top" alt="{{ $product->name }}"
-                                            style="width: 150px; height: 150px; object-fit: cover;">
-
-                                        <div class="card-body" style="align-items: center;">
-                                            <h5 class="card-title">{{ $product->name }}</h5>
-                                            <p class="card-text">السعر: {{ $product->price }} جنيه</p>
-                                            <p class="card-text" style="color: red; background-color: yellow; padding: 5px;">الكمية
-                                                المتوفرة من المنتج ({{ $product->quantity }}) </p>
-
-                                            <button class="btn btn-sm btn-primary add-to-order" data-name="{{ $product->name }}"
-                                                data-price="{{ $product->price }}" data-id="{{ $product->id }}">
-                                                إضافة الي عربة الشراء
-                                            </button>
-                                        </div>
-                                    </div>
+                <div class="pos-products" id="product-list">
+                    @foreach($products as $product)
+                        @if($product->quantity > 0)
+                            <article class="pos-product product-item"
+                                data-category="{{ $product->category }}"
+                                data-name="{{ $product->name }}"
+                                data-id="{{ $product->id }}"
+                                data-price="{{ $product->price }}"
+                                data-stock="{{ $product->quantity }}"
+                                tabindex="0" role="button" aria-label="إضافة {{ $product->name }}">
+                                <span class="pos-stock {{ $product->quantity <= 5 ? 'low' : '' }}">متوفر: {{ $product->quantity }}</span>
+                                <div class="pos-product-img">
+                                    <img src="{{ asset('images/products/' . ($product->image ?: 'item.png')) }}" alt="{{ $product->name }}" loading="lazy">
                                 </div>
-                            @endif
-                        @endforeach
-                    </div>
-
+                                <div class="pos-product-info">
+                                    <h4 class="pos-product-name">{{ $product->name }}</h4>
+                                    <div class="pos-product-code">كود المنتج: <strong>{{ $product->id }}</strong></div>
+                                    <div class="pos-product-price">{{ $product->price }} <small>جنيه</small></div>
+                                    <button type="button" class="pos-add add-to-order" tabindex="-1">+ إضافة إلى العربة</button>
+                                </div>
+                            </article>
+                        @endif
+                    @endforeach
+                    <div class="pos-empty d-none-pos" id="no-results">لا توجد منتجات مطابقة للبحث</div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
 
-    <!-- row closed -->
-    </div>
-    <!-- Container closed -->
-    </div>
-    <!-- main-content closed -->
+        <!-- ===================== Cart & Checkout (fixed panel) ===================== -->
+        <aside class="pos-cart">
+            <form id="checkout-form" method="post" action="{{ route('submit_order') }}" class="pos-card pos-cart-form" novalidate>
+                @csrf
+                <input type="hidden" id="totalField" name="total" value="">
+                <input type="hidden" id="finalTotalField" name="finalTotal" value="">
+                <input type="hidden" name="cart" value="">
 
+                <!-- 1) Header (fixed) -->
+                <div class="pos-card-head">
+                    <h3>عربة الشراء</h3>
+                    <span class="pos-badge" id="cart-count">0 عنصر</span>
+                </div>
+
+                <!-- 2) Cart items (own scrollbar) -->
+                <div class="pos-cart-list pos-scrollable" id="cart-items"></div>
+
+                <!-- 3) Totals (fixed) -->
+                <div class="pos-sum">
+                    <div class="pos-sum-row"><span>المجموع</span><span id="total">0.00 ج.م</span></div>
+                    <div class="pos-sum-row"><span>الخصم</span><span id="deduction-display">0.00 ج.م</span></div>
+                    <div class="pos-sum-row grand"><span>الإجمالي بعد الخصم</span><span><span id="final-total">0.00</span> ج.م</span></div>
+                </div>
+
+                <!-- 4) Customer & payment (own scrollbar) -->
+                <div class="pos-fields pos-scrollable">
+                    <div class="pos-section-title">بيانات العميل</div>
+
+                    <div class="pos-field">
+                        <label class="lbl" for="datetime">التاريخ والوقت</label>
+                        <input class="pos-input" type="datetime-local" id="datetime" name="datetime">
+                    </div>
+
+                    <div class="pos-field">
+                        <div class="pos-segment three">
+                            <input type="radio" id="no-customer" name="customer_type" value="none" checked>
+                            <label for="no-customer">بدون بيانات</label>
+                            <input type="radio" id="new-customer" name="customer_type" value="new">
+                            <label for="new-customer">عميل جديد</label>
+                            <input type="radio" id="existing-customer" name="customer_type" value="existing">
+                            <label for="existing-customer">عميل دائم</label>
+                        </div>
+                        <small class="text-muted">بيانات العميل اختيارية للبيع النقدي والفيزا. تسجيل عميل جديد ينشئ له صفحة دائمة، والبيع الآجل يتطلب اختيار عميل.</small>
+                    </div>
+
+                    <div class="pos-field d-none-pos" id="existing-customer-container">
+                        <label class="lbl" for="existing-phone">اختر العميل</label>
+                        <select id="existing-phone" class="pos-input select2" style="width:100%">
+                            <option value="">-- اختر العميل --</option>
+                            @foreach ($customers as $customer)
+                                <option value="{{ $customer->id }}" data-name="{{ $customer->name }}" data-phone="{{ $customer->contact_info }}">
+                                    {{ $customer->contact_info ?: 'بدون هاتف' }} - {{ $customer->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="pos-field" id="name-container">
+                        <label class="lbl" for="name">اسم العميل</label>
+                        <input type="text" id="name" name="customer[name]" class="pos-input" placeholder="ادخل اسم العميل" disabled>
+                        <span id="name-validation" class="pos-error"></span>
+                    </div>
+
+                    <div class="pos-field" id="phone-container">
+                        <label class="lbl" for="phone">الموبايل</label>
+                        <input type="tel" id="phone" name="customer[phone]" class="pos-input" placeholder="01xxxxxxxxx" dir="rtl" inputmode="numeric" disabled>
+                        <span id="phone-validation" class="pos-error"></span>
+                    </div>
+
+                    <div class="pos-section-title">الدفع</div>
+
+                    <div class="pos-field">
+                        <label class="lbl" for="deduction">الخصم (اختياري)</label>
+                        <input type="number" id="deduction" name="deduction" class="pos-input" placeholder="0.00" min="0" step="any">
+                        <span id="deduction-validation" class="pos-error"></span>
+                    </div>
+
+                    <div class="pos-field">
+                        <label class="lbl">طريقة الدفع</label>
+                        <div class="pos-segment three">
+                            <input type="radio" name="paymentMethod" value="cash" id="cash" required checked>
+                            <label for="cash">نقدي</label>
+                            <input type="radio" name="paymentMethod" value="visa" id="visa">
+                            <label for="visa">فيزا</label>
+                            <input type="radio" name="paymentMethod" value="credit" id="credit">
+                            <label for="credit">آجل</label>
+                        </div>
+                    </div>
+
+                    <div class="pos-field d-none-pos" id="credit-input">
+                        <label class="lbl" for="pay-amount">المبلغ المدفوع</label>
+                        <input type="number" id="pay-amount" name="payAmount" class="pos-input" placeholder="0.00" min="0" step="any" disabled>
+                        <span id="pay-amount-validation" class="pos-error"></span>
+                    </div>
+
+                    <div class="pos-remaining d-none-pos" id="remaining-box">
+                        <span>المبلغ المتبقي</span>
+                        <span><span id="remaining-amount-display">0.00</span> ج.م</span>
+                    </div>
+                </div>
+
+                <!-- 5) Confirm (fixed at the bottom) -->
+                <div class="pos-foot">
+                    <span id="required-fields-validation" class="pos-error" style="margin:0 0 8px"></span>
+                    <button type="submit" class="pos-submit" id="submit-btn">تأكيد عملية البيع</button>
+                    <button type="button" class="pos-clear" id="clear-cart">تفريغ العربة</button>
+                </div>
+            </form>
+        </aside>
+    </div>
+</div>
 @endsection
+
 @section('js')
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ URL::asset('assets/plugins/select2/js/select2.min.js') }}"></script>
+<script>
+(function () {
+    'use strict';
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const categoryButtons = document.querySelectorAll('.category-btn');
-            const searchInput = document.getElementById('product-search');
-            const products = document.querySelectorAll('.product-item');
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => (Number(n) || 0).toFixed(2);
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-            // Category filtering
-            categoryButtons.forEach(button => {
-                button.addEventListener('click', function () {
-                    const category = this.getAttribute('data-category');
+    let cart = [];
+    let activeCategory = 'all';
 
-                    // Show/Hide products based on selected category
-                    products.forEach(product => {
-                        if (category === 'all' || product.getAttribute('data-category') === category) {
-                            product.style.display = 'block';
-                        } else {
-                            product.style.display = 'none';
-                        }
-                    });
-                });
-            });
+    /* ---------- Date default ---------- */
+    (function setNow() {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        $('datetime').value = d.toISOString().slice(0, 16);
+    })();
 
-            // Search filtering
-            searchInput.addEventListener('input', function () {
-                const query = searchInput.value.trim().toLowerCase();
+    /* ---------- Product filtering ---------- */
+    const products = Array.from(document.querySelectorAll('.product-item'));
 
-                products.forEach(product => {
-                    const productName = product.getAttribute('data-name').toLowerCase();
-                    const productId = product.getAttribute('data-id').toLowerCase();
-
-                    // Check if the query matches product name or ID
-                    if (productName.includes(query) || productId.includes(query)) {
-                        product.style.display = 'block'; // Show matching products
-                    } else {
-                        product.style.display = 'none'; // Hide non-matching products
-                    }
-                });
-            });
+    function applyFilters() {
+        const q = $('product-search').value.trim().toLowerCase();
+        let visible = 0;
+        products.forEach((p) => {
+            const matchCat = activeCategory === 'all' || p.dataset.category === activeCategory;
+            const matchQ = !q || p.dataset.name.toLowerCase().includes(q) || p.dataset.id.toLowerCase().includes(q);
+            const show = matchCat && matchQ;
+            p.style.display = show ? '' : 'none';
+            if (show) visible++;
         });
-    </script>
+        $('visible-count').textContent = visible + ' منتج';
+        $('no-results').classList.toggle('d-none-pos', visible !== 0);
+    }
 
+    document.querySelectorAll('.category-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.category-btn').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeCategory = btn.dataset.category;
+            applyFilters();
+        });
+    });
+    $('product-search').addEventListener('input', applyFilters);
+    applyFilters();
 
-    <script>
+    /* ---------- Cart ---------- */
+    function addToCart(el) {
+        const id = el.dataset.id;
+        const stock = parseInt(el.dataset.stock, 10) || 0;
+        const price = parseFloat(el.dataset.price) || 0;
+        const existing = cart.find((i) => i.id === id);
 
-        let cart = [];
-        let total = 0;
+        if (existing) {
+            if (existing.quantity >= stock) return flashError('الكمية المتاحة من "' + el.dataset.name + '" هي ' + stock + ' فقط.');
+            existing.quantity++;
+        } else {
+            cart.push({ id, product: el.dataset.name, price, quantity: 1, stock, total: price });
+        }
+        render(true);
+    }
 
-        function addToCart(id, product, price) {
-            const existingProduct = cart.find(item => item.id === id);
-            if (existingProduct) {
-                existingProduct.quantity++;
-                existingProduct.total = existingProduct.quantity * existingProduct.price;
+    function flashError(msg) {
+        const box = $('required-fields-validation');
+        box.textContent = msg;
+        setTimeout(() => { if (box.textContent === msg) box.textContent = ''; }, 3500);
+    }
+
+    products.forEach((p) => {
+        p.addEventListener('click', () => addToCart(p));
+        p.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addToCart(p); }
+        });
+    });
+
+    function setQty(index, qty) {
+        const item = cart[index];
+        if (!item) return;
+        qty = parseInt(qty, 10);
+        if (isNaN(qty) || qty < 1) qty = 1;
+        if (qty > item.stock) { flashError('الكمية المتاحة من "' + item.product + '" هي ' + item.stock + ' فقط.'); qty = item.stock; }
+        item.quantity = qty;
+        render();
+    }
+
+    $('cart-items').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const i = parseInt(btn.dataset.index, 10);
+        if (btn.dataset.act === 'inc') setQty(i, cart[i].quantity + 1);
+        if (btn.dataset.act === 'dec') setQty(i, cart[i].quantity - 1);
+        if (btn.dataset.act === 'remove') { cart.splice(i, 1); render(); }
+    });
+    $('cart-items').addEventListener('change', (e) => {
+        if (e.target.classList.contains('quantity-input')) setQty(parseInt(e.target.dataset.index, 10), e.target.value);
+    });
+
+    $('clear-cart').addEventListener('click', () => {
+        if (cart.length && confirm('هل تريد تفريغ العربة؟')) { cart = []; render(); }
+    });
+
+    const cartTotal = () => cart.reduce((s, i) => s + i.total, 0);
+    const deductionValue = () => parseFloat($('deduction').value) || 0;
+    const finalTotalValue = () => Math.max(cartTotal() - deductionValue(), 0);
+
+    // scrollToEnd = true -> jump to the newest item after adding a product
+    function render(scrollToEnd) {
+        cart.forEach((i) => { i.total = i.price * i.quantity; });
+
+        const list = $('cart-items');
+        const prevScroll = list.scrollTop;
+
+        if (!cart.length) {
+            list.innerHTML = '<div class="pos-cart-empty">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>' +
+                '<div>عربة الشراء فارغة</div></div>';
+        } else {
+            list.innerHTML = cart.map((item, i) => `
+                <div class="pos-line">
+                    <div>
+                        <div class="pos-line-name">${esc(item.product)}</div>
+                        <div class="pos-line-unit">${money(item.price)} ج.م للوحدة</div>
+                    </div>
+                    <div class="pos-line-total">${money(item.total)} ج.م</div>
+                    <div class="pos-line-actions">
+                        <div class="pos-qty">
+                            <button type="button" data-act="dec" data-index="${i}" aria-label="إنقاص">−</button>
+                            <input type="number" class="quantity-input" data-index="${i}" value="${item.quantity}" min="1" max="${item.stock}">
+                            <button type="button" data-act="inc" data-index="${i}" aria-label="زيادة">+</button>
+                        </div>
+                        <button type="button" class="pos-remove" data-act="remove" data-index="${i}">حذف</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        list.scrollTop = scrollToEnd ? list.scrollHeight : prevScroll;
+
+        const count = cart.reduce((s, i) => s + i.quantity, 0);
+        $('cart-count').textContent = count + ' عنصر';
+        syncTotals();
+    }
+
+    function syncTotals() {
+        const total = cartTotal();
+        const ded = deductionValue();
+        const final = finalTotalValue();
+
+        $('total').textContent = money(total) + ' ج.م';
+        $('deduction-display').textContent = money(ded) + ' ج.م';
+        $('final-total').textContent = money(final);
+
+        $('totalField').value = money(total);
+        $('finalTotalField').value = money(final);
+        document.querySelector('input[name="cart"]').value = JSON.stringify(
+            cart.map(({ id, product, price, quantity, total }) => ({ id, product, price, quantity, total }))
+        );
+        calculateRemaining();
+    }
+
+    /* ---------- Deduction / payment ---------- */
+    $('deduction').addEventListener('input', syncTotals);
+    $('pay-amount').addEventListener('input', calculateRemaining);
+
+    function isCredit() { return $('credit').checked; }
+
+    function toggleCreditInput() {
+        const credit = isCredit();
+        $('credit-input').classList.toggle('d-none-pos', !credit);
+        $('remaining-box').classList.toggle('d-none-pos', !credit);
+        $('pay-amount').disabled = !credit;
+        $('pay-amount').required = credit;
+        if (!credit) $('pay-amount').value = '';
+        calculateRemaining();
+    }
+    document.querySelectorAll('input[name="paymentMethod"]').forEach((r) => r.addEventListener('change', toggleCreditInput));
+
+    function calculateRemaining() {
+        const paid = isCredit() ? (parseFloat($('pay-amount').value) || 0) : 0;
+        const remaining = isCredit() ? Math.max(finalTotalValue() - paid, 0) : 0;
+        $('remaining-amount-display').textContent = money(remaining);
+    }
+
+    /* ---------- Searchable existing customer select ---------- */
+    if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+        window.jQuery('#existing-phone').select2({
+            placeholder: '-- اختر العميل --',
+            allowClear: true,
+            language: {
+                noResults: () => 'لا توجد نتائج',
+                searching: () => 'جارٍ البحث...'
+            },
+            width: '100%'
+        });
+    }
+
+    /* ---------- Customer type ---------- */
+    const nameInput = $('name'), phoneInput = $('phone'), existingSelect = $('existing-phone');
+
+    function setCustomerMode(mode, clearSelection = true) {
+        const isNew = mode === 'new';
+        const isExisting = mode === 'existing';
+        $('name-container').classList.toggle('d-none-pos', !isNew);
+        $('phone-container').classList.toggle('d-none-pos', !isNew);
+        $('existing-customer-container').classList.toggle('d-none-pos', !isExisting);
+
+        nameInput.disabled = !isNew;
+        nameInput.required = isNew;
+        phoneInput.disabled = !isNew;
+        phoneInput.required = false;
+        existingSelect.disabled = !isExisting;
+        existingSelect.required = isExisting;
+        existingSelect.name = isExisting ? 'customer_id' : '';
+
+        if (clearSelection) {
+            nameInput.value = '';
+            phoneInput.value = '';
+            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+                window.jQuery('#existing-phone').val('').trigger('change');
             } else {
-                cart.push({ id, product, price, quantity: 1, total: price });
-            }
-            total += price;
-            updateCart();
-        }
-
-        function updateCart() {
-            const cartItemsDiv = document.getElementById('cart-items');
-            cartItemsDiv.innerHTML = cart.length === 0
-                ? '<tr><td colspan="5">Your cart is empty.</td></tr>'
-                : cart.map((item, index) => {
-                    return `
-                        <tr>
-                            <td>${item.product}</td>
-                            <td><input type="number" class="form-control quantity-input" value="${item.quantity}" min="1" onchange="updateQuantity(${index})" style="border: none; width: 50px; padding: 0px;" required></td>
-                            <td><input type="hidden" value="${item.price}" required>${item.price} ج.م</td>
-                            <td><input type="hidden" value="${item.total.toFixed(2)}" required>${item.total.toFixed(2)} ج.م</td>
-                            <td><input type="hidden" value="${item.id}" required><button class="btn btn-danger btn-sm" onclick="removeFromCart(${index})">Remove</button></td>
-                        </tr>
-                    `;
-                }).join('');
-
-            // Update final total and cart total
-            const finalTotal = cart.reduce((sum, item) => sum + item.total, 0);
-            document.getElementById("finalTotalField").value = finalTotal.toFixed(2);
-            document.getElementById("totalField").value = finalTotal.toFixed(2);
-            document.querySelector('input[name="cart"]').value = JSON.stringify(cart);
-
-            updateFinalTotal();
-            updateCartTotal();
-        }
-
-        function removeFromCart(index) {
-            total -= cart[index].total;
-            cart.splice(index, 1);
-            updateCart();
-        }
-
-        function updateQuantity(index) {
-            const newQuantity = document.querySelectorAll('.quantity-input')[index].value;
-            if (newQuantity >= 1) {
-                const product = cart[index];
-                const oldTotal = product.total;
-                const newTotal = product.price * newQuantity;
-                product.quantity = newQuantity;
-                product.total = newTotal;
-                total += (newTotal - oldTotal);
-                updateCart();
+                existingSelect.value = '';
             }
         }
+    }
 
-        function updateFinalTotal() {
-            const deduction = parseFloat(document.getElementById('deduction').value) || 0;
-            const finalTotal = total - deduction;
-            document.getElementById('final-total').textContent = finalTotal.toFixed(2);
-            calculateRemaining();
+    ['no-customer', 'new-customer', 'existing-customer'].forEach((id) => {
+        $(id).addEventListener('change', (event) => setCustomerMode(event.target.value));
+    });
+    setCustomerMode('none', false);
+
+    existingSelect.addEventListener('change', () => {
+        const opt = existingSelect.selectedOptions[0];
+        if (opt && opt.value !== '') {
+            nameInput.value = opt.dataset.name || '';
+            phoneInput.value = opt.dataset.phone || '';
+        } else {
+            nameInput.value = ''; phoneInput.value = '';
+        }
+    });
+
+    /* ---------- Validation & submit ---------- */
+    const nameRegex = /^[A-Za-z\u0600-\u06FF\s0-9]+$/;
+    const phoneRegex = /^01[0-9]{9}$/;
+
+    function setErr(inputId, errId, msg) {
+        $(errId).textContent = msg || '';
+        const el = $(inputId);
+        if (el) el.classList.toggle('invalid', !!msg);
+        return !msg;
+    }
+
+    $('checkout-form').addEventListener('submit', (e) => {
+        const existing = $('existing-customer').checked;
+        const newCustomer = $('new-customer').checked;
+        let ok = true;
+
+        ['name-validation', 'phone-validation', 'deduction-validation', 'pay-amount-validation', 'required-fields-validation']
+            .forEach((id) => ($(id).textContent = ''));
+
+        if (!cart.length) { flashError('أضف منتجًا واحدًا على الأقل إلى العربة.'); ok = false; }
+
+        const nameVal = nameInput.value.trim();
+        if (newCustomer && (!nameVal || !nameRegex.test(nameVal))) {
+            ok = setErr('name', 'name-validation', 'اسم العميل غير صالح.') && ok;
+        } else {
+            setErr('name', 'name-validation', '');
         }
 
-        function toggleCreditInput(isCredit) {
-            const creditInput = document.getElementById('credit-input');
-            const payAmount = document.getElementById('pay-amount');
-            const remainingAmountDisplay = document.getElementById('remaining-amount-display');
-
-            creditInput.style.display = isCredit ? 'block' : 'none';
-            payAmount.disabled = !isCredit;
-            payAmount.required = isCredit;
-            payAmount.value = isCredit ? payAmount.value : '';
-            remainingAmountDisplay.textContent = isCredit ? remainingAmountDisplay.textContent : '0';
+        if (isCredit() && !existing && !newCustomer) {
+            $('required-fields-validation').textContent = 'البيع الآجل يتطلب تسجيل عميل أو اختيار عميل دائم لحفظ المديونية.';
+            ok = false;
         }
 
-        function updateCartTotal() {
-            const cartTotal = cart.reduce((acc, item) => acc + item.total, 0);
-            document.getElementById('total').textContent = `ج.م ${cartTotal.toFixed(2)}`;
+        if (existing) {
+            if (!existingSelect.value) { $('phone-validation').textContent = 'يرجى اختيار العميل.'; ok = false; }
+            else setErr('phone', 'phone-validation', '');
+        } else if (newCustomer) {
+            const phoneVal = phoneInput.value.trim();
+            if (phoneVal && !phoneRegex.test(phoneVal)) {
+                ok = setErr('phone', 'phone-validation', 'رقم الموبايل يجب أن يبدأ بـ 01 وطوله 11 رقمًا.') && ok;
+            } else setErr('phone', 'phone-validation', '');
         }
 
-        function calculateRemaining() {
-            const finalTotal = parseFloat(document.getElementById('final-total').textContent) || 0;
-            const payAmount = parseFloat(document.getElementById('pay-amount').value) || 0;
-            const remainingAmount = finalTotal - payAmount;
-            document.getElementById('remaining-amount-display').textContent = remainingAmount > 0 ? remainingAmount.toFixed(2) : '0';
+        if (deductionValue() > cartTotal()) ok = setErr('deduction', 'deduction-validation', 'الخصم لا يمكن أن يكون أكبر من الإجمالي.') && ok;
+        else setErr('deduction', 'deduction-validation', '');
+
+        if (isCredit()) {
+            const paid = parseFloat($('pay-amount').value);
+            if (isNaN(paid) || paid < 0) ok = setErr('pay-amount', 'pay-amount-validation', 'أدخل المبلغ المدفوع.') && ok;
+            else if (paid > finalTotalValue()) ok = setErr('pay-amount', 'pay-amount-validation', 'المبلغ المدفوع أكبر من الإجمالي بعد الخصم.') && ok;
+            else setErr('pay-amount', 'pay-amount-validation', '');
         }
 
-        function clearFormAndRefresh() {
-            document.getElementById('checkout-form').reset();
-            document.getElementById('final-total').textContent = '0';
-            document.getElementById('remaining-amount-display').textContent = '0';
-            document.getElementById('deduction').value = '';
-            document.getElementById('pay-amount').value = '';
-            toggleCreditInput(false);
-            cart.length = 0;
-            location.reload();
+        if (!ok) {
+            e.preventDefault();
+            // bring the first error into view inside the scrollable fields area
+            const firstErr = document.querySelector('.pos-fields .pos-error:not(:empty), .pos-fields .invalid');
+            if (firstErr) firstErr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            return;
         }
 
-        function submitOrder() {
-            const name = document.getElementById('name')?.value;
-            const phone = document.getElementById('phone')?.value;
-            const deduction = parseFloat(document.getElementById('deduction')?.value) || 0;
-            const paymentMethod = document.querySelector('input[name="payment-method"]:checked')?.value;
-            const payAmount = parseFloat(document.getElementById('pay-amount')?.value) || 0;
+        syncTotals();
+        $('submit-btn').disabled = true;
+        $('submit-btn').textContent = 'جاري الحفظ...';
+    });
 
-            // Validation checks
-            const nameRegex = /^[A-Za-z\u0600-\u06FF\s0-9]+$/;
-            const phoneRegex = /^01[0-9]{9}$/;
-            const nameValidation = document.getElementById('name-validation');
-            const phoneValidation = document.getElementById('phone-validation');
-            const deductionValidation = document.getElementById('deduction-validation');
-            const payAmountValidation = document.getElementById('pay-amount-validation');
-            const requiredFieldsValidation = document.getElementById('required-fields-validation');
+    render();
+    toggleCreditInput();
+})();
+</script>
 
-            if (!name || !nameRegex.test(name)) {
-                nameValidation.textContent = 'اسم العميل غير صالح.';
-                return;
-            }
-            if (!phone || !phoneRegex.test(phone)) {
-                phoneValidation.textContent = 'رقم الموبايل يجب أن يبدأ بـ 01 وطوله 11 حرف.';
-                return;
-            }
-            if (deduction > total) {
-                deductionValidation.textContent = 'الخصم لا يمكن أن يكون أكبر من الإجمالي.';
-                return;
-            }
-            if (paymentMethod === 'credit' && payAmount > (total - deduction)) {
-                payAmountValidation.textContent = 'المبلغ المدفوع لا يمكن أن يكون أكبر من الإجمالي بعد الخصم.';
-                return;
-            }
-            if (!name || !phone || !paymentMethod) {
-                requiredFieldsValidation.textContent = 'يرجى ملء جميع الحقول المطلوبة.';
-                return;
-            }
-
-            // Prepare order data
-            const finalTotal = total - deduction;
-            const remainingAmount = paymentMethod === 'credit' ? finalTotal - payAmount : 0;
-
-            const order = {
-                customer: { name, phone },
-                cart,
-                total,
-                deduction,
-                finalTotal,
-                paymentMethod,
-                payAmount,
-                remainingAmount
-            };
-
-            console.log('Final Order Details:', JSON.stringify(order, null, 2));
-
-            fetch('{{ route("submit_order") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: JSON.stringify(order)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Order submitted successfully!');
-                        clearFormAndRefresh();
-                    } else {
-                        alert('Error submitting order: ' + data.message);
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-
-            clearFormAndRefresh();
-        }
-
-        // Event listener for adding products to cart
-        document.querySelectorAll('.add-to-order').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const { id, name, price } = e.target.dataset;
-                addToCart(id, name, parseFloat(price));
-            });
-        });
-
-    </script>
-
-    @if (session('success'))
-        <script>
-            // Check if order submission was successful
-            window.onload = function () {
-                const invoiceId = {{ $invoiceId }}; // Assuming you pass the $invoiceId from the controller
-                const url = "{{ route('invoice.show', ['id' => ':id']) }}".replace(':id', invoiceId);
-
-                const screenWidth = window.innerWidth;
-                const screenHeight = window.innerHeight;
-                const popupWidth = screenWidth * 0.5;
-                const popupHeight = screenHeight;
-
-                const left = (screenWidth - popupWidth) / 2;
-
-                // Open the invoice in a popup window
-                window.open(url, '_blank', `width=${popupWidth},height=${popupHeight},left=${left},top=0,scrollbars=yes`);
-            };
-        </script>
-    @endif
-
+@if (session('success') && isset($invoiceId))
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const newCustomerRadio = document.getElementById("new-customer");
-            const existingCustomerRadio = document.getElementById("existing-customer");
-            const phoneContainer = document.getElementById("phone-container");
-            const existingCustomerContainer = document.getElementById("existing-customer-container");
-            const phoneInput = document.getElementById("phone");
-            const nameInput = document.getElementById("name");
-            const existingPhoneSelect = document.getElementById("existing-phone");
-            const form = document.querySelector("form"); // تحديد الفورم
-
-            // عند اختيار "عميل دائم"
-            existingCustomerRadio.addEventListener("change", function () {
-                phoneContainer.classList.add("d-none");
-                existingCustomerContainer.classList.remove("d-none");
-                phoneInput.removeAttribute("required");
-                existingPhoneSelect.setAttribute("required", "required");
-
-                // تعطيل إدخال اسم العميل
-                nameInput.setAttribute("disabled", "disabled");
-                nameInput.value = "";
-                phoneInput.value = "";
-            });
-
-            // عند اختيار "عميل جديد"
-            newCustomerRadio.addEventListener("change", function () {
-                phoneContainer.classList.remove("d-none");
-                existingCustomerContainer.classList.add("d-none");
-                phoneInput.setAttribute("required", "required");
-                existingPhoneSelect.removeAttribute("required");
-
-                // تفعيل إدخال اسم العميل
-                nameInput.removeAttribute("disabled");
-                nameInput.setAttribute("required", "required");
-                nameInput.value = "";
-                phoneInput.value = "";
-            });
-
-            // عند اختيار عميل دائم من القائمة المنسدلة
-            existingPhoneSelect.addEventListener("change", function () {
-                const selectedOption = existingPhoneSelect.selectedOptions[0];
-                if (selectedOption.value !== "") {
-                    nameInput.value = selectedOption.dataset.name || "";
-                    phoneInput.value = selectedOption.value;
-                } else {
-                    nameInput.value = "";
-                    phoneInput.value = "";
-                }
-            });
-
-            // قبل إرسال النموذج، إزالة `disabled` من اسم العميل إذا كان عميل دائم
-            form.addEventListener("submit", function () {
-                if (existingCustomerRadio.checked) {
-                    nameInput.removeAttribute("disabled");
-                }
-            });
+        // Open the invoice in a popup after a successful sale
+        window.addEventListener('load', function () {
+            const url = "{{ route('invoice.show', ['id' => ':id']) }}".replace(':id', {{ $invoiceId }});
+            const w = window.innerWidth, h = window.innerHeight;
+            const pw = w * 0.5, left = (w - pw) / 2;
+            window.open(url, '_blank', `width=${pw},height=${h},left=${left},top=0,scrollbars=yes`);
         });
     </script>
-
-
+@endif
 @endsection

@@ -33,8 +33,8 @@
 										<div class="col-md">
 											<label class="tx-gray-600">معلومات الفاتورة</label>
 											<p class="invoice-info-row"><span>رقم الفاتورة</span> <span>{{ $invoice->id }}</span></p>
-											<p class="invoice-info-row"><span>اسم العميل</span> <span>{{ $customer->name }}</span></p>
-											<p class="invoice-info-row"><span>رقم الموبايل</span> <span>{{ $customer->phone }}</span></p>
+							<p class="invoice-info-row"><span>اسم العميل</span> <span>{{ $customer->name ?? 'بدون بيانات عميل' }}</span></p>
+							<p class="invoice-info-row"><span>رقم الموبايل</span> <span>{{ $customer->phone ?? '—' }}</span></p>
 											<p class="invoice-info-row"><span>تاريخ الفاتورة</span> <span>{{ \Carbon\Carbon::parse($invoice->created_at)->format('d/m/Y') }}</span></p>
 											<p class="invoice-info-row"><span>الموظف المسئول</span> <span>{{ $user->name ?? 'N/A' }}</span></p>
 										</div>

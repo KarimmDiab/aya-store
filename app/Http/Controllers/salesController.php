@@ -18,97 +18,121 @@ class salesController extends Controller
             ->get();
         $products = DB::table('products')
             ->whereNull('deleted_at')
+            ->where('quantity', '>', 0)
+            ->select('id', 'name', 'category', 'quantity', 'price', 'image')
             ->get();
-        $salesInvoiceIds = DB::table('sales_invoices')
-            ->orderBy('created_at', 'desc')
-            ->whereNull('deleted_at')
-            ->pluck('id');
-        $salesInvoices = DB::table('sales_invoices')
-            ->join('customers', 'sales_invoices.customer_id', '=', 'customers.id')
-            ->select(
-                'sales_invoices.id as sales_invoice_id',
-                'customers.id as customer_id',
-                'customers.name as customer_name',
-                'customers.contact_info as customer_phone',
-                'sales_invoices.payment_method as payment_method',
-                'sales_invoices.total_amount as total_invoice',
-                'sales_invoices.paid_amount as invoice_paid_amount',
-                'sales_invoices.remaining_amount as invoice_remaning_amount',
-                'sales_invoices.created_at as invoice_date',
-                'sales_invoices.updated_at as invoice_update'
-            )
-            ->whereNull('sales_invoices.deleted_at')
-            ->get();
-
         $customers = DB::table('customers')
             ->whereNull('deleted_at')
+            ->select('id', 'name', 'contact_info')
             ->get();
 
-        return view('sales.sales_invoice', compact('categories', 'products', 'salesInvoiceIds', 'salesInvoices', 'customers'));
+        return view('sales.sales_invoice', compact('categories', 'products', 'customers'));
     }
 
     public function allInvoices(Request $request)
     {
+        $filters = $request->validate([
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+        ], [
+            'date_from.date' => 'تاريخ البداية غير صحيح.',
+            'date_to.date' => 'تاريخ النهاية غير صحيح.',
+            'date_to.after_or_equal' => 'تاريخ النهاية يجب أن يكون بعد تاريخ البداية أو مساويًا له.',
+        ]);
+
+        $transactionTotals = DB::table('customer_payment_transactions')
+            ->whereNull('deleted_at')
+            ->select('sales_invoice_id')
+            ->selectRaw('SUM(amount_paid) as total_paid_transactions')
+            ->groupBy('sales_invoice_id');
+        $returnTotals = DB::table('sales_return_invoices')
+            ->whereNull('deleted_at')
+            ->select('original_invoice_id')
+            ->selectRaw('SUM(total_amount) as total_returned, COUNT(*) as active_return_count')
+            ->groupBy('original_invoice_id');
         $salesInvoices = DB::table('sales_invoices')
-        ->join('customers', 'sales_invoices.customer_id', '=', 'customers.id')
+        ->leftJoin('customers', 'sales_invoices.customer_id', '=', 'customers.id')
+        ->leftJoinSub($transactionTotals, 'transaction_totals', function ($join) {
+            $join->on('transaction_totals.sales_invoice_id', '=', 'sales_invoices.id');
+        })
+        ->leftJoinSub($returnTotals, 'return_totals', function ($join) {
+            $join->on('return_totals.original_invoice_id', '=', 'sales_invoices.id');
+        })
         ->select(
             'sales_invoices.id as sales_invoice_id',
             'customers.id as customer_id',
-            'customers.name as customer_name',
+            DB::raw("COALESCE(customers.name, 'بدون بيانات عميل') as customer_name"),
             'customers.contact_info as customer_phone',
             'sales_invoices.payment_method as payment_method',
             'sales_invoices.total_amount as total_invoice',
+            'sales_invoices.total_amount as gross_total',
+            'sales_invoices.deduction as invoice_discount',
+            'sales_invoices.net_total',
             'sales_invoices.paid_amount as invoice_paid_amount',
             'sales_invoices.remaining_amount as invoice_remaning_amount',
             'sales_invoices.created_at as invoice_date',
             'sales_invoices.updated_at as invoice_update',
     
-            // ✅ total paid from transactions
-            DB::raw('(
-                SELECT COALESCE(SUM(customer_payment_transactions.amount_paid), 0)
-                FROM customer_payment_transactions
-                WHERE customer_payment_transactions.sales_invoice_id = sales_invoices.id
-            ) as total_paid_transactions'),
-    
-            // ✅ adjusted remaining amount
-            DB::raw('(
-                sales_invoices.remaining_amount - (
-                    SELECT COALESCE(SUM(customer_payment_transactions.amount_paid), 0)
-                    FROM customer_payment_transactions
-                    WHERE customer_payment_transactions.sales_invoice_id = sales_invoices.id
-                )
-            ) as adjusted_remaining_amount')
+            DB::raw('COALESCE(transaction_totals.total_paid_transactions, 0) as total_paid_transactions'),
+            DB::raw('COALESCE(return_totals.total_returned, 0) as total_returned'),
+            DB::raw('COALESCE(return_totals.active_return_count, 0) as return_count'),
+            DB::raw('COALESCE(sales_invoices.net_total, sales_invoices.total_amount - COALESCE(sales_invoices.deduction, 0)) as net_after_discount'),
+            DB::raw('GREATEST(COALESCE(sales_invoices.net_total, sales_invoices.total_amount - COALESCE(sales_invoices.deduction, 0)) - COALESCE(return_totals.total_returned, 0), 0) as net_after_returns'),
+            DB::raw('COALESCE(sales_invoices.paid_amount, 0) + COALESCE(transaction_totals.total_paid_transactions, 0) as total_paid_before_returns'),
+            DB::raw('LEAST(COALESCE(return_totals.total_returned, 0), COALESCE(sales_invoices.paid_amount, 0) + COALESCE(transaction_totals.total_paid_transactions, 0)) as paid_amount_deducted_for_returns'),
+            DB::raw('GREATEST(COALESCE(sales_invoices.paid_amount, 0) + COALESCE(transaction_totals.total_paid_transactions, 0) - COALESCE(return_totals.total_returned, 0), 0) as total_paid_amount'),
+            DB::raw('GREATEST(COALESCE(sales_invoices.net_total, sales_invoices.total_amount - COALESCE(sales_invoices.deduction, 0)) - COALESCE(return_totals.total_returned, 0) - COALESCE(sales_invoices.paid_amount, 0) - COALESCE(transaction_totals.total_paid_transactions, 0), 0) as adjusted_remaining_amount')
         )
         ->whereNull('sales_invoices.deleted_at')
-        ->get();
-        $products = DB::table('products')
-            ->whereNull('deleted_at')
-            ->get();
+        ->when(! empty($filters['date_from']), function ($query) use ($filters) {
+            $query->whereDate('sales_invoices.created_at', '>=', $filters['date_from']);
+        })
+        ->when(! empty($filters['date_to']), function ($query) use ($filters) {
+            $query->whereDate('sales_invoices.created_at', '<=', $filters['date_to']);
+        })
+        ->orderByDesc('sales_invoices.id')
+        ->paginate(50)
+        ->withQueryString();
+
+        $invoiceIds = $salesInvoices->getCollection()->pluck('sales_invoice_id');
         $salesInvoicesDetails = DB::table('sales_invoices')
             ->select(
                 'sales_invoices.id as sales_invoice_id',
-                'customers.id as customer_id',
-                'customers.name as customer_name',
-                'customers.contact_info as customer_phone',
-                'sales_invoices.payment_method as payment_method',
-                'sales_invoices.total_amount as total_invoice',
-                'sales_invoices.paid_amount as invoice_paid_amount',
-                'sales_invoices.remaining_amount as invoice_remaning_amount',
-                'sales_invoices.created_at as invoice_date',
-                'sales_invoices.updated_at as invoice_update',
                 'products.id as product_id',
                 'products.name as product_name',
                 'sales_invoice_details.quantity as product_quantity',
                 'sales_invoice_details.unit_price as sales_price',
                 'sales_invoice_details.total_amount as product_total_amount'
             )
-            ->join('customers', 'sales_invoices.customer_id', '=', 'customers.id')
-            ->rightJoin('sales_invoice_details', 'sales_invoices.id', '=', 'sales_invoice_details.invoice_id')
+            ->join('sales_invoice_details', 'sales_invoices.id', '=', 'sales_invoice_details.invoice_id')
             ->join('products', 'sales_invoice_details.product_id', '=', 'products.id')
             ->whereNull('sales_invoices.deleted_at')
+            ->whereNull('sales_invoice_details.deleted_at')
+            ->whereIn('sales_invoices.id', $invoiceIds)
             ->get();
+        $salesInvoicesDetailsByInvoice = $salesInvoicesDetails->groupBy('sales_invoice_id');
 
-        return view('sales.all_sales_invoices', compact('salesInvoices', 'salesInvoicesDetails', 'products'));
+        return view('sales.all_sales_invoices', compact('salesInvoices', 'salesInvoicesDetailsByInvoice'));
+    }
+
+    public function searchProducts(Request $request)
+    {
+        $term = trim((string) $request->query('q', ''));
+
+        $products = DB::table('products')
+            ->whereNull('deleted_at')
+            ->when($term !== '', function ($query) use ($term) {
+                $query->where(function ($query) use ($term) {
+                    $query->where('name', 'like', '%' . $term . '%')
+                        ->orWhere('id', 'like', '%' . $term . '%');
+                });
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'price'])
+            ->map(fn ($product) => ['id' => $product->id, 'text' => $product->name, 'price' => $product->price]);
+
+        return response()->json(['results' => $products]);
     }
 
     /**
@@ -136,7 +160,7 @@ class salesController extends Controller
 
         // Custom error messages
         $messages = [
-            'customer.name.required' => 'اسم العميل مطلوب.',
+            'customer.name.required' => 'اسم العميل مطلوب عند اختيار تسجيل عميل جديد.',
             'customer.name.string' => 'اسم العميل يجب أن يكون نص.',
             'customer.name.max' => 'اسم العميل يجب أن لا يتجاوز 255 حرفًا.',
             //'customer.phone.required' => 'رقم الهاتف مطلوب.',
@@ -175,7 +199,10 @@ class salesController extends Controller
 
         // Validation rules for the cart and other fields
         $validated = $request->validate([
-            'customer.name' => 'required|string|max:255',
+            'customer_type' => 'nullable|in:none,new,existing',
+            'customer_id' => 'required_if:customer_type,existing|nullable|integer',
+            'customer.name' => 'required_if:customer_type,new|nullable|string|max:255',
+            'customer.phone' => ['nullable', 'regex:/^01[0-9]{9}$/'],
             //'customer.phone' => 'required|regex:/^01[0-9]{9}$/',
             'cart' => 'required|array|min:1',
             'cart.*.id' => 'required|integer|exists:products,id',
@@ -190,6 +217,12 @@ class salesController extends Controller
             'remainingAmount' => 'numeric|min:0',
         ], $messages);
 
+        if ($validated['paymentMethod'] === 'credit' && ($validated['customer_type'] ?? 'none') === 'none') {
+            return back()->withInput()->withErrors([
+                'customer' => 'البيع الآجل يتطلب تسجيل عميل أو اختيار عميل دائم لحفظ المديونية على حسابه.',
+            ]);
+        }
+
         try {
             // Validation passed
             $cart = $validated['cart'];
@@ -199,8 +232,15 @@ class salesController extends Controller
                 return $item['quantity'] * $item['price'];
             }, $cart));
         
-            $deduction = is_numeric($validated['deduction']) ? $validated['deduction'] : 0;
+            $deduction = is_numeric($validated['deduction'] ?? null) ? (float) $validated['deduction'] : 0;
+            if ($deduction > $grossTotal) {
+                return back()->withInput()->withErrors(['deduction' => 'الخصم لا يمكن أن يكون أكبر من إجمالي الفاتورة.']);
+            }
             $netTotal = $grossTotal - $deduction;
+
+            if ($validated['paymentMethod'] === 'credit' && (float) ($validated['payAmount'] ?? 0) > $netTotal) {
+                return back()->withInput()->withErrors(['payAmount' => 'المبلغ المدفوع أكبر من الإجمالي بعد الخصم.']);
+            }
         
             $remainingAmount = ($validated['paymentMethod'] === 'credit') ?
                 max(0, $netTotal - ($validated['payAmount'] ?? 0)) : 0;
@@ -209,26 +249,37 @@ class salesController extends Controller
             DB::beginTransaction();
         
             // Handle optional phone
-            $phone = $request['customer']['phone'] ?? null;
-        
             $customer = null;
-        
-            if ($phone) {
+            $customerId = null;
+            $customerType = $validated['customer_type'] ?? 'none';
+
+            if ($customerType === 'existing') {
                 $customer = DB::table('customers')
-                    ->where('contact_info', $phone)
+                    ->where('id', $validated['customer_id'])
+                    ->whereNull('deleted_at')
                     ->first();
-            }
-        
-            if (! $customer) {
-                // Insert new customer
-                $customerId = DB::table('customers')->insertGetId([
-                    'name' => $validated['customer']['name'],
-                    'contact_info' => $phone, // nullable
-                    'created_at' => $request->datetime ? $request->datetime : now(),
-                    'updated_at' => now(),
-                ]);
-            } else {
+
+                if (! $customer) {
+                    DB::rollBack();
+                    return back()->withInput()->withErrors(['customer_id' => 'العميل الدائم المحدد غير موجود. اختر العميل مرة أخرى.']);
+                }
                 $customerId = $customer->id;
+            } elseif ($customerType === 'new') {
+                $phone = $request->filled('customer.phone') ? trim($request->input('customer.phone')) : null;
+                $customer = $phone
+                    ? DB::table('customers')->where('contact_info', $phone)->whereNull('deleted_at')->first()
+                    : null;
+
+                if ($customer) {
+                    $customerId = $customer->id;
+                } else {
+                    $customerId = DB::table('customers')->insertGetId([
+                        'name' => $validated['customer']['name'],
+                        'contact_info' => $phone,
+                        'created_at' => $request->datetime ?: now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
         
             // Insert into sales_invoices
@@ -295,15 +346,10 @@ class salesController extends Controller
                 ->with('orderData', $orderData);
         
         } catch (\Exception $e) {
-            DB::rollBack();
-        
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
             return back()->with('error', $e->getMessage());
-        }catch (\Exception $e) {
-            DB::rollBack();
-
-            // Redirect back with error message
-            return redirect()->back()
-                ->with('error', 'حدث خطأ في تسجيل فاتورة المبيعات: '.$e->getMessage());
         }
     }
 
@@ -327,11 +373,6 @@ class salesController extends Controller
             ->where('id', $invoice->customer_id)
             ->select('id', 'name', 'contact_info as phone') // Add the phone number column
             ->first();
-
-        // Check if customer exists
-        if (! $customer) {
-            return redirect()->back()->with('error', 'Customer data not found.');
-        }
 
         // Retrieve invoice items
         $invoiceItems = DB::table('sales_invoice_details')
@@ -379,107 +420,253 @@ class salesController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        // Begin a transaction to ensure data integrity
-        DB::beginTransaction();
+        $validated = $request->validate([
+            'edit_sales_customer_name' => 'nullable|string|max:255',
+            'edit_sales_customer_phone' => 'nullable|string|max:255',
+            'edit_sales_payment_method' => 'required|in:cash,visa,credit',
+            'edit_sales_amount_paid' => 'required|numeric|min:0',
+            'product_name' => 'required|array|min:1',
+            'product_name.*' => 'required|integer|exists:products,id',
+            'quantity' => 'required|array|min:1',
+            'quantity.*' => 'required|integer|min:1',
+            'unit_price' => 'required|array|min:1',
+            'unit_price.*' => 'required|numeric|min:0',
+        ]);
 
         try {
-            // Find the sales invoice by its ID
-            $invoice = DB::table('sales_invoices')->where('sales_invoice_id', $id)->first();
-
-            if (! $invoice) {
-                throw new \Exception('Invoice not found');
-            }
-
-            // Update the sales invoice data
-            DB::table('sales_invoices')
-                ->where('sales_invoice_id', $id)
-                ->update([
-                    'customer_name' => $request->edit_sales_customer_name,
-                    'customer_phone' => $request->edit_sales_customer_phone,
-                    'invoice_date' => $invoice->invoice_date, // Assuming this doesn't change
-                    'payment_method' => $request->edit_sales_payment_method,
-                    'invoice_paid_amount' => $request->edit_sales_amount_paid,
-                    'invoice_remaning_amount' => $request->edit_sales_remaining_amount,
-                    'total_invoice' => $request->edit_sales_invoices_amount,
-                ]);
-
-            // Loop through the invoice details and update them
-            foreach ($request->product_name as $index => $productId) {
-                $quantity = $request->quantity[$index];
-                $unitPrice = $request->unit_price[$index];
-                $total = $request->total[$index];
-
-                // Find the corresponding sales invoice detail
-                $invoiceDetail = DB::table('sales_invoice_details')
-                    ->where('sales_invoice_id', $id)
-                    ->where('product_id', $productId)
+            DB::transaction(function () use ($validated, $id) {
+                $invoice = DB::table('sales_invoices')
+                    ->where('id', $id)
+                    ->whereNull('deleted_at')
+                    ->lockForUpdate()
                     ->first();
+                if (! $invoice) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'فاتورة المبيعات غير موجودة.']);
+                }
 
-                if ($invoiceDetail) {
-                    // Update the sales invoice detail
-                    DB::table('sales_invoice_details')
-                        ->where('sales_invoice_id', $id)
-                        ->where('product_id', $productId)
-                        ->update([
-                            'product_quantity' => $quantity,
-                            'sales_price' => $unitPrice,
-                            'product_total_amount' => $total,
-                        ]);
-                } else {
-                    // If there's no existing invoice detail, create a new one
-                    DB::table('sales_invoice_details')->insert([
-                        'sales_invoice_id' => $id,
-                        'product_id' => $productId,
-                        'product_quantity' => $quantity,
-                        'sales_price' => $unitPrice,
-                        'product_total_amount' => $total,
+                $hasReturns = DB::table('sales_return_invoices')
+                    ->where('original_invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->exists();
+                if ($hasReturns) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'invoice' => 'لا يمكن تعديل فاتورة لها مرتجعات مسجلة حتى لا يختل رصيد المخزون والحسابات.',
                     ]);
                 }
-            }
 
-            // Commit the transaction
-            DB::commit();
+                $newLines = [];
+                $newQuantities = [];
+                $grossTotal = 0;
+                foreach ($validated['product_name'] as $index => $productId) {
+                    $productId = (int) $productId;
+                    $quantity = (int) $validated['quantity'][$index];
+                    $unitPrice = (float) $validated['unit_price'][$index];
+                    $lineTotal = round($quantity * $unitPrice, 2);
+                    $grossTotal += $lineTotal;
+                    $newQuantities[$productId] = ($newQuantities[$productId] ?? 0) + $quantity;
+                    $newLines[] = [
+                        'invoice_id' => $invoice->id,
+                        'product_id' => $productId,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'total_amount' => $lineTotal,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
 
-            // Redirect back with a success message
-            return redirect()->route('invoice.index')->with('success', 'Invoice updated successfully.');
+                $oldQuantities = DB::table('sales_invoice_details')
+                    ->where('invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->select('product_id')
+                    ->selectRaw('SUM(quantity) as quantity')
+                    ->groupBy('product_id')
+                    ->pluck('quantity', 'product_id');
+                $productIds = collect(array_keys($oldQuantities->all()))
+                    ->merge(array_keys($newQuantities))->unique()->values();
+                $products = DB::table('products')->whereIn('id', $productIds)
+                    ->lockForUpdate()->get()->keyBy('id');
 
-        } catch (\Exception $e) {
-            // If any error occurs, rollback the transaction
-            DB::rollBack();
+                foreach ($newQuantities as $productId => $quantity) {
+                    if (! $products->has($productId) || $products->get($productId)->deleted_at !== null) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['product_name' => 'أحد المنتجات المحددة غير متاح.']);
+                    }
+                }
+                foreach ($productIds as $productId) {
+                    $stockChange = (int) ($oldQuantities[$productId] ?? 0) - (int) ($newQuantities[$productId] ?? 0);
+                    $product = $products->get($productId);
+                    if ($stockChange < 0 && (int) ($product->quantity ?? 0) < abs($stockChange)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['quantity' => 'المخزون الحالي لا يكفي للكمية الجديدة.']);
+                    }
+                    if ($stockChange !== 0) {
+                        DB::table('products')->where('id', $productId)->update([
+                            'quantity' => DB::raw('COALESCE(quantity, 0) + ' . $stockChange),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                }
 
-            // Return with error message
-            return back()->with('error', 'An error occurred while updating the invoice.');
+                $deduction = (float) ($invoice->deduction ?? 0);
+                if ($grossTotal < $deduction) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'quantity' => 'إجمالي الأصناف لا يكفي لتغطية خصم الفاتورة الحالي.',
+                    ]);
+                }
+                $netTotal = round($grossTotal - $deduction, 2);
+                $paidAmount = (float) $validated['edit_sales_amount_paid'];
+                $additionalPayments = (float) DB::table('customer_payment_transactions')
+                    ->where('sales_invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->sum('amount_paid');
+                if ($paidAmount + $additionalPayments > $netTotal + 0.00001) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'edit_sales_amount_paid' => 'إجمالي الدفعة الأولى ودفعات الأجل يتجاوز صافي الفاتورة.',
+                    ]);
+                }
+                if ($validated['edit_sales_payment_method'] !== 'credit' && $paidAmount + $additionalPayments + 0.00001 < $netTotal) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'edit_sales_amount_paid' => 'يجب سداد صافي الفاتورة بالكامل عند اختيار الدفع النقدي أو البطاقة.',
+                    ]);
+                }
+                $remainingAmount = $validated['edit_sales_payment_method'] === 'credit' ? max(0, $netTotal - $paidAmount) : 0;
+
+                if ($invoice->customer_id) {
+                    $customerUpdates = ['updated_at' => now()];
+                    if (isset($validated['edit_sales_customer_name'])) {
+                        $customerUpdates['name'] = $validated['edit_sales_customer_name'];
+                    }
+                    if (isset($validated['edit_sales_customer_phone'])) {
+                        $customerUpdates['contact_info'] = $validated['edit_sales_customer_phone'];
+                    }
+                    if (count($customerUpdates) > 1) {
+                        DB::table('customers')->where('id', $invoice->customer_id)->update($customerUpdates);
+                    }
+                }
+                DB::table('sales_invoice_details')->where('invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')->update(['deleted_at' => now(), 'updated_at' => now()]);
+                DB::table('sales_invoice_details')->insert($newLines);
+                DB::table('sales_invoices')->where('id', $invoice->id)->update([
+                    'total_amount' => $grossTotal,
+                    'net_total' => $netTotal,
+                    'payment_method' => $validated['edit_sales_payment_method'],
+                    'paid_amount' => $paidAmount,
+                    'remaining_amount' => $remainingAmount,
+                    'updated_at' => now(),
+                ]);
+
+                $remaining = max(0, $netTotal - $paidAmount);
+                $payments = DB::table('customer_payment_transactions')
+                    ->where('sales_invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->orderBy('payment_date')
+                    ->orderBy('id')
+                    ->get(['id', 'amount_paid']);
+                foreach ($payments as $payment) {
+                    $remaining = max(0, $remaining - (float) $payment->amount_paid);
+                    DB::table('customer_payment_transactions')->where('id', $payment->id)->update([
+                        'transaction_remaining_amount' => $remaining,
+                        'updated_at' => now(),
+                    ]);
+                }
+            });
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            report($exception);
+            return back()->withInput()->with('error', 'تعذر تحديث فاتورة المبيعات. تحقق من البيانات وحاول مرة أخرى.');
         }
-    }
 
+        return redirect()->route('all_sales')->with('success', 'تم تحديث فاتورة المبيعات بنجاح.');
+    }
     /**
      * Remove the specified resource from storage.
      */
     public function destroy($id)
     {
-        // استرجاع تفاصيل الفاتورة من جدول sales_invoices_details
-        $invoiceDetails = DB::table('sales_invoice_details')
-            ->where('invoice_id', $id)
-            ->get();
+        try {
+            DB::transaction(function () use ($id) {
+                $invoice = DB::table('sales_invoices')
+                    ->where('id', $id)
+                    ->whereNull('deleted_at')
+                    ->lockForUpdate()
+                    ->first();
 
-        // تحديث كميات المنتجات في جدول products
-        foreach ($invoiceDetails as $detail) {
-            DB::table('products')
-                ->where('id', $detail->product_id)
-                ->increment('quantity', $detail->quantity);
+                if (! $invoice) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'invoice' => 'فاتورة المبيعات غير موجودة أو تم حذفها بالفعل.',
+                    ]);
+                }
+
+                $soldQuantities = DB::table('sales_invoice_details')
+                    ->where('invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->select('product_id')
+                    ->selectRaw('SUM(quantity) as quantity')
+                    ->groupBy('product_id')
+                    ->pluck('quantity', 'product_id');
+
+                $returnedQuantities = DB::table('sales_return_invoice_details as details')
+                    ->join('sales_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+                    ->where('details.original_invoice_id', $invoice->id)
+                    ->whereNull('details.deleted_at')
+                    ->whereNull('returns.deleted_at')
+                    ->select('details.product_id')
+                    ->selectRaw('SUM(details.quantity) as quantity')
+                    ->groupBy('details.product_id')
+                    ->pluck('quantity', 'product_id');
+
+                $productIds = $soldQuantities->keys()->merge($returnedQuantities->keys())->unique()->values();
+                $products = DB::table('products')->whereIn('id', $productIds)->lockForUpdate()->get()->keyBy('id');
+                $now = now();
+
+                foreach ($productIds as $productId) {
+                    $quantityToRestore = (int) ($soldQuantities[$productId] ?? 0) - (int) ($returnedQuantities[$productId] ?? 0);
+                    if ($quantityToRestore < 0 && $products->has($productId)
+                        && (int) ($products->get($productId)->quantity ?? 0) < abs($quantityToRestore)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'invoice' => 'لا يمكن إلغاء الفاتورة لأن المخزون الحالي لا يكفي لعكس كمية مرتجعة سابقة.',
+                        ]);
+                    }
+                    if ($quantityToRestore !== 0 && $products->has($productId)) {
+                        DB::table('products')->where('id', $productId)->update([
+                            'quantity' => DB::raw('COALESCE(quantity, 0) + ' . $quantityToRestore),
+                            'updated_at' => $now,
+                        ]);
+                    }
+                }
+
+                DB::table('customer_payment_transactions')
+                    ->where('sales_invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->update(['deleted_at' => $now, 'updated_at' => $now]);
+
+                DB::table('sales_return_invoice_details')
+                    ->where('original_invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->update(['deleted_at' => $now, 'updated_at' => $now]);
+
+                DB::table('sales_return_invoices')
+                    ->where('original_invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->update(['deleted_at' => $now, 'updated_at' => $now]);
+
+                DB::table('sales_invoice_details')
+                    ->where('invoice_id', $invoice->id)
+                    ->whereNull('deleted_at')
+                    ->update(['deleted_at' => $now, 'updated_at' => $now]);
+
+                DB::table('sales_invoices')->where('id', $invoice->id)->update([
+                    'deleted_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            });
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            report($exception);
+            return back()->with('error', 'تعذر حذف فاتورة المبيعات وإلغاء أثرها. حاول مرة أخرى.');
         }
 
-        // تحديث `deleted_at` في جدول sales_invoices_details
-        DB::table('sales_invoice_details')
-            ->where('invoice_id', $id)
-            ->update(['deleted_at' => now()]);
-
-        // تحديث `deleted_at` في جدول sales_invoices
-        DB::table('sales_invoices')
-            ->where('id', $id)
-            ->update(['deleted_at' => now()]);
-
-        // توجيه المستخدم بعد الحذف
-        return redirect()->route('all_sales')->with('success', 'تم حذف الفاتورة وإعادة الكميات بنجاح');
+        return redirect()->route('all_sales')->with('success', 'تم حذف الفاتورة وإعادة صافي الكمية وإلغاء أثرها المالي.');
     }
 }

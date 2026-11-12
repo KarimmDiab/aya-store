@@ -9,6 +9,7 @@ use App\Http\Controllers\branchesController;
 use App\Http\Controllers\purchasesController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\salesController;
+use App\Http\Controllers\SalesReturnsController;
 use App\Http\Controllers\categoryController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\ExpenseController;
@@ -35,9 +36,7 @@ Route::get('/', function () {
     return view('auth.login');
 });
 
-Route::get('/home', function () {
-    return view('home');
-});
+Route::get('/home', [App\Http\Controllers\HomeController::class, 'index']);
 
 Auth::routes();
 
@@ -112,6 +111,7 @@ Route::post('purchases/purchase_invoices/{supplier}', [purchasesController::clas
 Route::put('purchases/purchase_invoices/{invoice_id}', [purchasesController::class, 'update'])->name('purchase_invoices_update');
 Route::delete('purchases/purchase_invoices/{id}', [purchasesController::class, 'destroy'])->name('purchase_invoices_destroy');
 
+Route::get('purchases/purchase_invoices/{invoice_id}/edit', [purchasesController::class, 'edit'])->name('purchase_invoices.edit');
 Route::post('purchases/update_purchase_invoices/{invoice_id}', [purchasesController::class, 'edit'])->name('editInvoice');
 Route::post('purchases/update_price_purchase_invoices/{invoice_id}', [purchasesController::class, 'editPricePurchaseInvoice'])->name('editPricePurchaseInvoice');
 
@@ -125,6 +125,10 @@ Route::get('sales/sales_invoice', [salesController::class, 'index'])->name('sale
 Route::post('sales/sales_invoice', [salesController::class, 'store'])->name('submit_order');
 Route::get('sales/invoice/{id}', [salesController::class, 'show'])->name('invoice.show');
 Route::get('sales/all_sales_invoices', [salesController::class, 'allInvoices'])->name('all_sales');
+Route::get('sales/products/search', [salesController::class, 'searchProducts'])->name('sales.products.search');
+Route::get('sales/returns', [SalesReturnsController::class, 'index'])->name('sales.returns.index');
+Route::post('sales/returns', [SalesReturnsController::class, 'store'])->name('sales.returns.store');
+Route::get('sales/returns/invoice/{id}', [SalesReturnsController::class, 'show'])->name('sales.returns.show');
 Route::delete('sales/invoice/{id}', [salesController::class, 'destroy'])->name('invoice.destroy');
 Route::put('sales/invoice/{id}', [salesController::class, 'update'])->name('invoice.update');
 
@@ -167,10 +171,24 @@ Route::get('customers/credit_customers', [CustomersController::class, 'creditCus
 
 // reports routes
 Route::get('reports/reports_main_page', [ReportsController::class, 'index'])->name('home_reports');
-Route::post('reports/sub_reports/sales_per_product', [ReportsController::class, 'salesPerPeriod'])->name('sales_per_product');
-Route::post('reports/sub_reports/total_sales', [ReportsController::class, 'totalSales'])->name('total_sales');
-Route::post('reports/sub_reports/sales_per_customer', [ReportsController::class, 'salesPerCustomer'])->name('salesPerCustomer');
-Route::post('reports/sub_reports/sales_per_user', [ReportsController::class, 'salesPerUser'])->name('salesPerUser');
+Route::get('reports/sub_reports/sales_per_product', [ReportsController::class, 'salesPerPeriod'])->name('sales_per_product');
+Route::get('reports/sub_reports/total_sales', [ReportsController::class, 'totalSales'])->name('total_sales');
+Route::get('reports/sub_reports/sales_per_customer', [ReportsController::class, 'salesPerCustomer'])->name('salesPerCustomer');
+Route::get('reports/sub_reports/sales_per_user', [ReportsController::class, 'salesPerUser'])->name('salesPerUser');
+Route::get('reports/inventory/stock-summary', [ReportsController::class, 'inventoryStockSummary'])->name('inventory_stock_summary');
+Route::get('reports/inventory/movements', [ReportsController::class, 'inventoryMovements'])->name('inventory_movements');
+Route::get('reports/inventory/low-stock', [ReportsController::class, 'inventoryLowStock'])->name('inventory_low_stock');
+Route::get('reports/purchases/total', [ReportsController::class, 'purchaseTotals'])->name('purchase_report_total');
+Route::get('reports/purchases/suppliers', [ReportsController::class, 'purchasesPerSupplier'])->name('purchase_report_suppliers');
+Route::get('reports/purchases/products', [ReportsController::class, 'purchasesPerProduct'])->name('purchase_report_products');
+Route::get('reports/purchases/payments', [ReportsController::class, 'supplierPaymentsReport'])->name('purchase_report_payments');
+Route::get('reports/suppliers/paid', [ReportsController::class, 'supplierPaidReport'])->name('supplier_report_paid');
+Route::get('reports/suppliers/balances', [ReportsController::class, 'supplierBalancesReport'])->name('supplier_report_balances');
+Route::get('reports/profits/summary', [ReportsController::class, 'profitSummary'])->name('profit_report_summary');
+Route::get('reports/profits/compare', [ReportsController::class, 'profitComparison'])->name('profit_report_comparison');
+Route::get('reports/customers/sales', [ReportsController::class, 'customerSalesReport'])->name('customer_report_sales');
+Route::get('reports/customers/balances', [ReportsController::class, 'customerBalancesReport'])->name('customer_report_balances');
+Route::get('reports/customers/collections', [ReportsController::class, 'customerCollectionsReport'])->name('customer_report_collections');
 
 
 

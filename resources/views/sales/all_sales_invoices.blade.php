@@ -4,6 +4,50 @@
 @section('css')
 <!--- Internal Select2 css-->
 <link href="{{URL::asset('assets/plugins/select2/css/select2.min.css')}}" rel="stylesheet">
+<style>
+    .sales-invoices-card { border: 0; border-radius: 14px; box-shadow: 0 8px 30px rgba(24, 39, 75, .08); overflow: hidden; }
+    .sales-invoices-card .card-header { padding: 22px 24px; background: linear-gradient(120deg, #fff, #f5f7ff); border-bottom: 1px solid #edf0f5; }
+    .sales-invoices-card .card-title { font-weight: 700; color: #182230; }
+    .sales-invoices-card .table-responsive { border-radius: 10px; }
+    .sales-invoices-table { min-width: 1450px; margin-bottom: 0; }
+    .sales-invoices-table thead th { color: #536176; background: #f5f7fb; border-top: 0; font-size: 12px; white-space: nowrap; }
+    .sales-invoices-table tbody tr:hover { background: #f8faff; }
+    .sales-invoices-table td { vertical-align: middle; white-space: nowrap; }
+    .invoice-number { display: inline-block; padding: 5px 10px; border-radius: 8px; background: #eef2ff; color: #4338ca; font-weight: 700; }
+    .invoice-amount { font-weight: 700; color: #1e293b; font-variant-numeric: tabular-nums; }
+    .invoice-amount-due { color: #b45309; }
+    .invoice-actions { display: flex; align-items: center; gap: 6px; min-width: 280px; }
+    .invoice-actions .btn { white-space: nowrap; }
+    .invoice-modal .modal-content { border: 0; border-radius: 15px; overflow: hidden; box-shadow: 0 20px 60px rgba(15, 23, 42, .2); }
+    .invoice-modal .modal-dialog { max-width: 980px; }
+    .invoice-modal-header { color: #fff; background: linear-gradient(120deg, #3347a9, #5369d8); border-bottom: 0; }
+    .invoice-modal-header small { display: block; margin-top: 4px; color: rgba(255,255,255,.78); }
+    .invoice-modal .modal-body { padding: 24px; }
+    .invoice-customer-strip { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px; border: 1px solid #e8ecf4; border-radius: 12px; background: #f8faff; }
+    .invoice-customer-strip > div { flex: 1 1 180px; min-width: 0; }
+    .invoice-customer-strip span { display: block; margin-bottom: 4px; color: #758198; font-size: 12px; }
+    .invoice-customer-strip strong { display: block; color: #1e293b; }
+    .invoice-customer-strip .form-control { margin-top: 3px; }
+    .invoice-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin: 18px 0 24px; }
+    .invoice-summary-item { padding: 13px 15px; border: 1px solid #e9edf5; border-radius: 11px; background: #fff; }
+    .invoice-summary-item span { display: block; margin-bottom: 7px; color: #738097; font-size: 12px; }
+    .invoice-summary-item strong { color: #182230; font-size: 15px; font-variant-numeric: tabular-nums; }
+    .invoice-summary-due { border-color: #f1d6a8; background: #fffaf1; }
+    .invoice-summary-due strong { color: #a65a00; }
+    .invoice-section-heading { margin: 0 0 12px; color: #26344b; font-size: 15px; font-weight: 700; }
+    .invoice-items-table { margin-bottom: 0; border: 1px solid #e8ecf4; }
+    .invoice-items-table thead th { color: #526078; background: #f5f7fb; border-bottom: 1px solid #e8ecf4; white-space: nowrap; }
+    .invoice-items-table td, .invoice-items-table th { vertical-align: middle; }
+    .invoice-edit-items { min-width: 650px; }
+    .invoice-edit-items input, .invoice-edit-items select { min-width: 90px; }
+    .invoice-modal .modal-footer { padding: 14px 24px; background: #fafbfe; }
+    .invoice-delete-modal .modal-dialog { max-width: 520px; }
+    @media (max-width: 767px) {
+        .sales-invoices-card .card-header, .sales-invoices-card .card-body { padding: 15px; }
+        .invoice-modal .modal-body { padding: 16px; }
+        .invoice-actions { min-width: 0; flex-wrap: wrap; }
+    }
+</style>
 @endsection
 @section('page-header')
 				<!-- breadcrumb -->
@@ -13,7 +57,7 @@
 							<h4 class="content-title mb-0 my-auto">المبيعات</h4><span class="text-muted mt-1 tx-13 mr-2 mb-0">/ فواتير المبيعات</span>
 						</div>
 					</div>
-					
+
 				</div>
 				<!-- breadcrumb -->
 @endsection
@@ -38,331 +82,119 @@
 
                 	<!--div-->
 					<div class="col-xl-12">
-						<div class="card">
+						<div class="card sales-invoices-card">
 							<div class="card-header pb-0">
 								<div class="d-flex justify-content-between">
-									<h4 class="card-title mg-b-0">جدول فواتير المبيعات</h4>
-									<i class="mdi mdi-dots-horizontal text-gray"></i>
+									<div>
+										<h4 class="card-title mg-b-0">فواتير المبيعات</h4>
+										<p class="text-muted mb-0 mt-1">إجماليات الفواتير بعد الخصم والمرتجعات والسداد</p>
+									</div>
 								</div>
-								<p class="tx-12 tx-gray-500 mb-2">جدول عرض  لجميع فواتير المبيعات ..... في حالة التعديل علي بيانات اي فاتورة برجاء الضغط علي <a href="">تعديل بيانات مخازن</a></p>
-								
+
 							</div>
 							<div class="card-body">
+								<form method="GET" action="{{ route('all_sales') }}" class="invoice-date-filter mb-4">
+									<div class="form-row align-items-end">
+										<div class="form-group col-md-4 mb-2">
+											<label for="date-from">من تاريخ</label>
+											<input id="date-from" type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+										</div>
+										<div class="form-group col-md-4 mb-2">
+											<label for="date-to">إلى تاريخ</label>
+											<input id="date-to" type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+										</div>
+										<div class="form-group col-md-4 mb-2 d-flex">
+											<button type="submit" class="btn btn-primary mr-2">تطبيق الفلتر</button>
+											<a href="{{ route('all_sales') }}" class="btn btn-light">مسح التواريخ</a>
+										</div>
+									</div>
+								</form>
 								<div class="table-responsive">
-									<table class="table text-md-nowrap" id="example2">
+									<table class="table text-md-nowrap sales-invoices-table" id="example2">
 										<thead>
 											<tr>
 												<th class="wd-10p border-bottom-0">رقم الفاتورة</th>
 												<th class="wd-10p border-bottom-0">اسم العميل</th>
 												<th class="wd-10p border-bottom-0">رقم الموبايل</th>
 												<th class="wd-10p border-bottom-0"> طريقة الدفع</th>
-												<th class="wd-10p border-bottom-0">إجمالي الفاتورة</th>
-												<th class="wd-10p border-bottom-0">المبلغ المدفوع</th>
-												<th class="wd-9p border-bottom-0">المتبقي</th>
+												<th class="wd-10p border-bottom-0">الخصم</th>
+												<th class="wd-10p border-bottom-0">الصافي بعد الخصم</th>
+												<th class="wd-10p border-bottom-0">قيمة المرتجعات</th>
+												<th class="wd-10p border-bottom-0">الصافي بعد المرتجع</th>
+												<th class="wd-10p border-bottom-0">المدفوع بعد خصم المرتجعات</th>
+												<th class="wd-9p border-bottom-0">المتبقي الحالي</th>
 												<th class="wd-10p border-bottom-0">تاريخ الفاتورة</th>
-												<th class="wd-20p border-bottom-0">action</th>
+												<th class="wd-20p border-bottom-0">الإجراءات</th>
 												<th class="wd-10p border-bottom-0">تاريخ اخر تعديل</th>
 											</tr>
 										</thead>
 										<tbody>
 											@foreach($salesInvoices as $invoice)
 											<tr>
-												<td>{{ $invoice->sales_invoice_id }}</td>
-												<td>{{ $invoice->customer_name }}</td>
-												<td>{{ $invoice->customer_phone }}</td>
-												<td>{{ $invoice->payment_method }}</td>
-												<td>{{ $invoice->total_invoice }}</td>
-												<td>{{ $invoice->invoice_paid_amount }}</td>
-												<td>{{ $invoice->adjusted_remaining_amount }}</td>
+												<td><span class="invoice-number">#{{ $invoice->sales_invoice_id }}</span></td>
+												<td>{{ $invoice->customer_name ?: 'بدون بيانات عميل' }}</td>
+												<td>{{ $invoice->customer_phone ?: '—' }}</td>
+												<td><span class="badge {{ $invoice->payment_method === 'credit' ? 'badge-warning' : ($invoice->payment_method === 'visa' ? 'badge-info' : 'badge-success') }}">{{ ['cash' => 'نقداً', 'visa' => 'بطاقة', 'credit' => 'آجل'][$invoice->payment_method] ?? $invoice->payment_method }}</span></td>
+												<td class="invoice-amount">{{ number_format($invoice->invoice_discount, 2) }} ج.م</td>
+												<td class="invoice-amount">{{ number_format($invoice->net_after_discount, 2) }} ج.م</td>
+												<td class="invoice-amount">{{ number_format($invoice->total_returned, 2) }} ج.م</td>
+												<td class="invoice-amount">{{ number_format($invoice->net_after_returns, 2) }} ج.م</td>
+												<td class="invoice-amount">{{ number_format($invoice->total_paid_amount, 2) }} ج.م</td>
+												<td class="invoice-amount invoice-amount-due">{{ number_format($invoice->adjusted_remaining_amount, 2) }} ج.م</td>
 												<td>{{ $invoice->invoice_date }}</td>
-												
+
 												<td>
-												    <!-- details Sales Invoice Button -->
-													<a class="btn ripple btn-info" data-target="#detailsSalesInvoice{{ $invoice->sales_invoice_id }}" data-toggle="modal" href="">تفاصيل </a>
-														<!-- Large Modal for details Sales invoice-->
-														<div class="modal" id="detailsSalesInvoice{{ $invoice->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
-                                                            <div class="modal-dialog modal-lg" role="document" style="width: 88%; max-width: 88%;">
-                                                                <div class="modal-content modal-content-demo">
-                                                                    <div class="modal-header">
-                                                                        <h6 class="modal-title">تفاصيل فاتورة المبيعات </h6>
-                                                                        <button aria-label="Close" class="close" data-dismiss="modal" type="button">
-                                                                            <span aria-hidden="true">&times;</span>
-                                                                        </button>
-                                                                    </div>
-                                                                    <div class="modal-body">
-                                                                            <div class="row row-sm">
-                                                                                <div class="col-6">
-                                                                                    <div class="form-group mg-b-0">
-                                                                                        <label class="form-label"> رقم الفاتورة: <span class="tx-danger">*</span></label>
-                                                                                        <input class="form-control" name="details_sales_invoices_no" placeholder="قم بإدخال رقم الفاتورة" value="{{ $invoice->sales_invoice_id }}" readonly type="text">
-                                                                                     </div>
-                                                                                </div>
-                                                                                <div class="col-6">
-                                                                                    <div class="form-group">
-                                                                                        <label class="form-label">تاريخ الفاتورة: <span class="tx-danger">*</span></label>
-                                                                                         <input class="form-control" name="details_sales_invoices_date" placeholder="قم بإدخال تاريخ الفاتورة" value="{{ $invoice->invoice_date }}" readonly type="text">
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="row row-sm" style="margin-bottom: 45px;">
-                                                                                <div class="form-group col-6">
-                                                                                    <label for="purchase_invoices_supplier">اسم العميل</label>
-																					<input class="form-control" name="details_sales_customer_name" placeholder="برجاء إدخال اسم العميل" value="{{ $invoice->customer_name }}" readonly type="text">
-																				</div>
-                                                                            </div>
-																					<div class="row row-sm" style="margin-bottom: 45px;">
-                                                                                <div class="form-group col-6">
-                                                                                    <label for="purchase_invoices_supplier">رقم الموبايل</label>
-																					<input class="form-control" name="details_sales_customer_phone" placeholder="برجاء إدخال موبايل العميل" value="{{ $invoice->customer_phone }}" readonly type="text">
-																				</div>
-                                                                            </div>
-                                                                            <hr>
-                                                                            <div class="table-responsive">
-                                                                                <table class="table text-md-nowrap table-bordered" id="invoice-items-table" style="text-align: center;">
-                                                                                    <thead>
-                                                                                        <tr style="background-color: rgba(25, 145, 117, 0.5);">
-                                                                                            <th>المنتج</th>
-                                                                                            <th>الكمية</th>
-                                                                                            <th>السعر بيع للوحدة</th>
-                                                                                            <th>الإجمالي</th>   
-                                                                                        </tr>
-                                                                                    </thead>
-                                                                                     <tbody id="invoice-items-body">
-                                                                                        @foreach ($salesInvoicesDetails as $invoiceDetail)
-                                                                                            @if ($invoice->sales_invoice_id == $invoiceDetail->sales_invoice_id)
-                                                                                                    
-                                                                                                 <tr>
-                                                                                                    <td>
-																										{{ $invoiceDetail->product_name }}
-                                                                                                     </td>
-                                                                                                    <td>
-                                                                                                        {{ $invoiceDetail->product_quantity }}
-                                                                                                    </td>
-                                                                                                    <td>
-                                                                                                        {{ $invoiceDetail->sales_price }}
-                                                                                                    </td>
-                                                                                                    <td>
-                                                                                                         {{ $invoiceDetail->product_total_amount }}
-                                                                                                    </td>
-                                                                                                            
-                                                                                                </tr>
-                                                                                             @endif
-                                                                                        @endforeach
-                                                                                    </tbody>
-
-                                                                                </table>
-                                                                            </div>
-                                                                            <hr>
-                                                                            <div class="">
-                                                                                 <div class="col-6">
-                                                                                    <div class="form-group">
-                                                                                        <label for="purchase_invoices_amount">إجمالي الفاتورة :</label>
-                                                                                        <input type="number" step="0.01" id="details_sales_invoices_amount" name="details_sales_invoices_amount" class="form-control" value="{{ $invoice->total_invoice }}" placeholder="مبلغ الفاتورة" readonly>
-                                                                                    </div>
-                                                                                </div>
-																				<div class="col-6">
-                                                                                    <div class="form-group">
-                                                                                        <label for="purchase_invoices_amount"> طريقة الدفع :</label>
-                                                                                        <input type="text" step="0.01" id="details_sales_payment_method" name="details_sales_payment_method" class="form-control" value="{{ $invoice->payment_method }}" placeholder="" readonly>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div class="col-6">
-                                                                                    <div class="form-group">
-                                                                                        <label class="form-label">المبلغ المدفوع:</label>
-                                                                                        <input class="form-control" id="details_sales_amount_paid" name="details_sales_amount_paid" type="number" value="{{ $invoice->invoice_paid_amount }}" placeholder="أدخل المبلغ المدفوع" readonly>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div class="col-6">
-                                                                                    <div class="form-group">
-                                                                                        <label class="form-label">المبلغ المتبقي (دين):</label>
-                                                                                        <input class="form-control" id="details_sales_remaining_amount" name="details_sales_remaining_amount" type="number" value="{{ $invoice->invoice_remaning_amount }}" placeholder="المبلغ المتبقي" readonly>
-                                                                                    </div>
-                                                                                </div>         
-                                                                            </div>
-                                                                    </div>
-                                                                    <div class="modal-footer">
-                                                                        <button class="btn ripple btn-secondary" data-dismiss="modal" type="button">إغلاق</button>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>									
-                                                     <!-- end Large Modal for details Sales invoice-->
-     
-                                                   	
-													<!-- Edit Sales Invoice Button -->
-													<a class="btn ripple btn-primary" data-target="#editSalesInvoice{{ $invoice->sales_invoice_id }}" data-toggle="modal" href="">تعديل</a>
-													<!-- Large Modal for Details Sales Invoice -->
-													<div class="modal" id="editSalesInvoice{{ $invoice->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
-														<div class="modal-dialog modal-lg" role="document" style="width: 88%; max-width: 88%;">
-															<div class="modal-content modal-content-demo">
-																<div class="modal-header">
-																	<h6 class="modal-title">تعديل فاتورة المبيعات</h6>
-																	<button aria-label="Close" class="close" data-dismiss="modal" type="button">
-																		<span aria-hidden="true">&times;</span>
-																	</button>
-																</div>
-																<div class="modal-body">
-																	<div class="row row-sm">
-																		<!-- Invoice Number -->
-																		<div class="col-6">
-																			<div class="form-group mg-b-0">
-																				<label class="form-label">رقم الفاتورة: <span class="tx-danger">*</span></label>
-																				<input class="form-control" name="edit_sales_invoices_no" value="{{ $invoice->sales_invoice_id }}" readonly type="text">
-																			</div>
-																		</div>
-																		<!-- Invoice Date -->
-																		<div class="col-6">
-																			<div class="form-group">
-																				<label class="form-label">تاريخ الفاتورة: <span class="tx-danger">*</span></label>
-																				<input class="form-control" name="edit_sales_invoices_date" value="{{ $invoice->invoice_date }}" readonly type="text">
-																			</div>
-																		</div>
-																	</div>
-
-																	<!-- Customer Information -->
-																	<div class="row row-sm">
-																		<div class="form-group col-6">
-																			<label for="edit_sales_customer_name">اسم العميل</label>
-																			<input class="form-control" name="edit_sales_customer_name" value="{{ $invoice->customer_name }}" type="text">
-																		</div>
-																		<div class="form-group col-6">
-																			<label for="edit_sales_customer_phone">رقم الموبايل</label>
-																			<input class="form-control" name="edit_sales_customer_phone" value="{{ $invoice->customer_phone }}" type="text">
-																		</div>
-																	</div>
-																	<hr>
-
-																	<!-- Invoice Items Table -->
-																	<div class="table-responsive">
-																		<table class="table text-md-nowrap table-bordered" id="invoice-items-table" style="text-align: center;">
-																			<thead>
-																				<tr style="background-color: rgba(25, 145, 117, 0.5);">
-																					<th>المنتج</th>
-																					<th>الكمية</th>
-																					<th>السعر بيع للوحدة</th>
-																					<th>الإجمالي</th>
-																				</tr>
-																			</thead>
-																			<tbody>
-																				@foreach ($salesInvoicesDetails as $invoiceDetail)
-																					@if ($invoice->sales_invoice_id == $invoiceDetail->sales_invoice_id)
-																						<tr>
-																							<td>
-																								<select name="product_name[]" class="form-control">
-																									@foreach ($products as $product)
-																										<option value="{{ $product->id }}" {{ $product->id == $invoiceDetail->product_id ? 'selected' : '' }}>
-																											{{ $product->name }}
-																										</option>
-																									@endforeach
-																								</select>
-																							</td>
-																							<td>
-																								<input type="number" name="quantity[]" class="form-control product-quantity" value="{{ $invoiceDetail->product_quantity }}">
-																							</td>
-																							<td>
-																								<input type="number" step="0.01" name="unit_price[]" class="form-control product-price" value="{{ $invoiceDetail->sales_price }}" readonly>
-																							</td>
-																							<td>
-																								<input type="number" step="0.01" name="total[]" class="form-control product-total" value="{{ $invoiceDetail->product_total_amount }}" readonly>
-																							</td>
-																						</tr>
-																					@endif
-																				@endforeach
-																			</tbody>
-																		</table>
-																	</div>
-																	<hr>
-
-																	<!-- Totals -->
-																	<div class="row">
-																		<div class="col-6">
-																			<div class="form-group">
-																				<label for="edit_sales_invoices_amount">إجمالي الفاتورة:</label>
-																				<input type="number" step="0.01" id="edit_sales_invoices_amount" name="edit_sales_invoices_amount" class="form-control" value="{{ $invoice->total_invoice }}" readonly>
-																			</div>
-																		</div>
-																		<div class="col-6">
-																			<div class="form-group">
-																				<label for="edit_sales_payment_method">طريقة الدفع:</label>
-																				<select id="edit_sales_payment_method" name="edit_sales_payment_method" class="form-control">
-																					<option value="cash" {{ $invoice->payment_method == 'cash' ? 'selected' : '' }}>نقداً</option>
-																					<option value="credit" {{ $invoice->payment_method == 'credit' ? 'selected' : '' }}>بالدين</option>
-																				</select>
-																			</div>
-																		</div>
-																		<div class="col-6">
-																			<div class="form-group">
-																				<label class="form-label">المبلغ المدفوع:</label>
-																				<input class="form-control" id="edit_sales_amount_paid" name="edit_sales_amount_paid" type="number" value="{{ $invoice->invoice_paid_amount }}">
-																			</div>
-																		</div>
-																		<div class="col-6">
-																			<div class="form-group">
-																				<label class="form-label">المبلغ المتبقي (دين):</label>
-																				<input class="form-control" id="edit_sales_remaining_amount" name="edit_sales_remaining_amount" type="number" value="{{ $invoice->invoice_remaning_amount }}" readonly>
-																			</div>
-																		</div>
-																	</div>
-																</div>
-
-																<div class="modal-footer">
-																	<button class="btn ripple btn-secondary" data-dismiss="modal" type="button">إغلاق</button>
-																	<button class="btn ripple btn-primary" type="submit">حفظ التعديلات</button>
-																</div>
-															</div>
-														</div>
-													</div>								
-                                                     <!-- end Large Modal for details Sales invoice-->
-
-													 
-													<!-- Print Sales Invoice Button -->
-													<form action="{{ route('invoice.show', $invoice->sales_invoice_id) }}" method="get" style="display: inline;" onsubmit="return openInvoicePopup(this);">
-														<button type="submit" class="btn btn-warning">طباعة</button>
-													</form>
-													 <!-- end print Sales Invoice Button -->
-
-													<!-- delete Sales Invoice Button -->
-													<button class="btn btn-danger" data-toggle="modal" data-target="#deleteSalesInvoce{{ $invoice->sales_invoice_id }}">مسح</button>
-													<div class="modal fade" id="deleteSalesInvoce{{ $invoice->sales_invoice_id }}" tabindex="-1" role="dialog" aria-labelledby="deleteWarehouseLabel" aria-hidden="true">
-														<div class="modal-dialog" role="document">
-															<div class="modal-content">
-																<div class="modal-header">
-																	<h5 class="modal-title" id="deleteWarehouseLabel">تأكيد الحذف</h5>
-																	<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-																		<span aria-hidden="true">&times;</span>
-																	</button>
-																</div>
-																<div class="modal-body">
-																	هل أنت متأكد من أنك تريد حذف هذة الفاتورة؟
-																</div>
-																<div class="modal-footer">
-																	<form action="{{ route('invoice.destroy', $invoice->sales_invoice_id) }}" method="POST">
-																		@csrf
-																		@method('DELETE')
-																		<button type="submit" class="btn btn-danger">مسح</button>
-																	</form>
-																	<button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
-																</div>
-															</div>
-														</div>
-													</div>
-													<!-- end delete Sales Invoice Button -->
-
-												</td>
+    <div class="invoice-actions">
+        <button type="button" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#detailsSalesInvoice{{ $invoice->sales_invoice_id }}">تفاصيل</button>
+        @if($invoice->return_count > 0)
+            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="لا يمكن تعديل فاتورة لها مرتجعات">تعديل</button>
+        @else
+            <button type="button" class="btn btn-sm btn-outline-warning" data-toggle="modal" data-target="#editSalesInvoice{{ $invoice->sales_invoice_id }}">تعديل</button>
+        @endif
+        <a class="btn btn-sm btn-outline-info" href="{{ route('invoice.show', $invoice->sales_invoice_id) }}" target="_blank" rel="noopener">طباعة</a>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-toggle="modal" data-target="#deleteSalesInvoce{{ $invoice->sales_invoice_id }}">حذف</button>
+    </div>
+    @include('sales.partials.invoice_details_modal')
+    @if($invoice->return_count <= 0)
+        @include('sales.partials.invoice_edit_modal')
+    @endif
+    <div class="modal fade invoice-modal invoice-delete-modal" id="deleteSalesInvoce{{ $invoice->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header invoice-modal-header">
+                    <h5 class="modal-title">حذف فاتورة #{{ $invoice->sales_invoice_id }}</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">سيتم إعادة الكميات المتبقية بعد المرتجعات للمخزون واستبعاد الفاتورة ودفعاتها من الحسابات النشطة.</div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-dismiss="modal">إلغاء</button>
+                    <form action="{{ route('invoice.destroy', $invoice->sales_invoice_id) }}" method="POST">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</td>
 												<td>{{ $invoice->invoice_update }}</td>
 											</tr>
 											@endforeach
 
-											
+
 										</tbody>
 									</table>
+								</div>
+								<div class="mt-3">
+									{{ $salesInvoices->links() }}
 								</div>
 							</div><!-- bd -->
 						</div><!-- bd -->
 					</div>
 					<!--/div-->
 
-	
+
 				<!-- row closed -->
 			</div>
 			<!-- Container closed -->
@@ -370,101 +202,86 @@
 		<!-- main-content closed -->
 
 
-		
 
 
-		
+
+
 @endsection
 
 @section('js')
-<!--Internal  Select2 js -->
 <script src="{{URL::asset('assets/plugins/select2/js/select2.min.js')}}"></script>
-<!--Internal  Parsley.min js -->
-<script src="{{URL::asset('assets/plugins/parsleyjs/parsley.min.js')}}"></script>
-<!-- Internal Form-validation js -->
-<script src="{{URL::asset('assets/js/form-validation.js')}}"></script>
-<!-- Internal Data tables -->
 <script src="{{URL::asset('assets/plugins/datatable/js/jquery.dataTables.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.dataTables.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.responsive.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/responsive.dataTables.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/jquery.dataTables.js')}}"></script>
 <script src="{{URL::asset('assets/plugins/datatable/js/dataTables.bootstrap4.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/dataTables.buttons.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/buttons.bootstrap4.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/jszip.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/pdfmake.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/vfs_fonts.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/buttons.html5.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/buttons.print.min.js')}}"></script>
-<script src="{{URL::asset('assets/plugins/datatable/js/buttons.colVis.min.js')}}"></script>
 <script src="{{URL::asset('assets/plugins/datatable/js/dataTables.responsive.min.js')}}"></script>
 <script src="{{URL::asset('assets/plugins/datatable/js/responsive.bootstrap4.min.js')}}"></script>
-<!--Internal  Datatable js -->
-<script src="{{URL::asset('assets/js/table-data.js')}}"></script>
-
 <script>
-    document.addEventListener("input", function (e) {
-        // Function to calculate the product total for a specific row
-        const calculateProductTotal = (row) => {
-            const quantity = parseFloat(row.querySelector(".product-quantity").value) || 0;
-            const price = parseFloat(row.querySelector(".product-price").value) || 0;
-            const totalField = row.querySelector(".product-total");
-            const total = quantity * price;
-            totalField.value = total.toFixed(2);
-        };
+    $(function () {
+        $('.invoice-edit-form').closest('.invoice-modal').on('shown.bs.modal', function () {
+            $(this).find('.sales-product-select').each(function () {
+                const $select = $(this);
+                if ($select.hasClass('select2-hidden-accessible')) return;
 
-        // Function to calculate invoice total dynamically
-        const updateInvoiceTotal = () => {
-            let invoiceTotal = 0;
-            const allTotals = document.querySelectorAll(".product-total");
-            allTotals.forEach((field) => {
-                invoiceTotal += parseFloat(field.value) || 0;
+                $select.select2({
+                    width: '100%',
+                    minimumInputLength: 1,
+                    dropdownParent: $select.closest('.modal'),
+                    ajax: {
+                        url: "{{ route('sales.products.search') }}",
+                        dataType: 'json',
+                        delay: 250,
+                        data: params => ({ q: params.term }),
+                        processResults: data => data,
+                        cache: true
+                    }
+                });
+                $select.on('select2:select', function (event) {
+                    const row = this.closest('tr');
+                    const price = parseFloat(event.params.data.price) || 0;
+                    row.querySelector('.product-price').value = price.toFixed(2);
+                    updateInvoiceEditTotals(this.closest('.invoice-edit-form'));
+                });
             });
-            document.getElementById("edit_sales_invoices_amount").value = invoiceTotal.toFixed(2);
-            return invoiceTotal;
-        };
-
-        // Function to calculate the remaining amount dynamically
-        const updateRemainingAmount = () => {
-            const invoiceTotal = parseFloat(document.getElementById("edit_sales_invoices_amount").value) || 0;
-            const paidAmount = parseFloat(document.getElementById("edit_sales_amount_paid").value) || 0;
-            const remainingAmount = invoiceTotal - paidAmount;
-            document.getElementById("edit_sales_remaining_amount").value = remainingAmount.toFixed(2);
-        };
-
-        // Handle changes in product quantity or price
-        if (e.target.classList.contains("product-quantity") || e.target.classList.contains("product-price")) {
-            const row = e.target.closest("tr");
-            calculateProductTotal(row);
-
-            // Update the invoice total and remaining amount
-            updateInvoiceTotal();
-            updateRemainingAmount();
-        }
-
-        // Handle changes in paid amount
-        if (e.target.id === "edit_sales_amount_paid") {
-            updateRemainingAmount();
-        }
-    });
-
-    // Automatically calculate totals for all rows on page load
-    window.addEventListener("DOMContentLoaded", () => {
-        const rows = document.querySelectorAll("#invoice-items-body tr");
-        rows.forEach((row) => {
-            const quantityField = row.querySelector(".product-quantity");
-            const priceField = row.querySelector(".product-price");
-            if (quantityField && priceField) {
-                calculateProductTotal(row);
-            }
         });
 
-        // Update the totals after initial calculation
-        const invoiceTotal = updateInvoiceTotal();
-        updateRemainingAmount();
+        $('#example2').DataTable({
+            responsive: true,
+            language: { searchPlaceholder: 'Search...', sSearch: '' }
+        });
     });
+
+    function updateInvoiceEditTotals(form) {
+        if (!form) return;
+        const gross = Array.from(form.querySelectorAll('.product-total'))
+            .reduce((sum, field) => sum + (parseFloat(field.value) || 0), 0);
+        const discount = parseFloat(form.dataset.discount) || 0;
+        const returns = parseFloat(form.dataset.returns) || 0;
+        const additionalPaid = parseFloat(form.dataset.additionalPaid) || 0;
+        const initialPaid = parseFloat(form.querySelector('.edit-invoice-initial-paid').value) || 0;
+        const net = Math.max(0, gross - discount - returns);
+        const due = Math.max(0, net - initialPaid - additionalPaid);
+
+        form.querySelector('.edit-gross-input').value = gross.toFixed(2);
+        form.querySelector('.edit-gross-total').textContent = `${gross.toFixed(2)} ج.م`;
+        form.querySelector('.edit-net-total').textContent = `${net.toFixed(2)} ج.م`;
+        form.querySelector('.edit-due-total').textContent = `${due.toFixed(2)} ج.م`;
+    }
+
+    document.addEventListener('input', function (event) {
+        const form = event.target.closest('.invoice-edit-form');
+        if (!form) return;
+
+        if (event.target.matches('.product-quantity, .product-price')) {
+            const row = event.target.closest('tr');
+            const quantity = parseFloat(row.querySelector('.product-quantity').value) || 0;
+            const price = parseFloat(row.querySelector('.product-price').value) || 0;
+            row.querySelector('.product-total').value = (quantity * price).toFixed(2);
+        }
+        updateInvoiceEditTotals(form);
+    });
+
+    $('.invoice-edit-form').each(function () { updateInvoiceEditTotals(this); });
 </script>
+
 <script>
     function openInvoicePopup(form) {
         // Get the form's action URL

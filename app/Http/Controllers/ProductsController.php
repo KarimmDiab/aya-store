@@ -13,11 +13,12 @@ class ProductsController extends Controller
     public function index()
     {
         $products = DB::table('products')
-        ->whereNull('deleted_at')
-        ->get();
+            ->whereNull('deleted_at')
+            ->orderBy('id')
+            ->get(['id', 'name', 'category', 'quantity', 'cost_price', 'price', 'image', 'created_at', 'updated_at']);
         $categories = DB::table('category')
-        ->whereNull('deleted_at')
-        ->get();
+            ->whereNull('deleted_at')
+            ->get(['category_id', 'category_name']);
 
         return view('products.products', compact('products' , 'categories'));
     }
@@ -36,7 +37,6 @@ class ProductsController extends Controller
         $request->validate([
             'product_name' => 'required|regex:/^[\p{Arabic}\p{Latin}0-9\s]+$/u',
             'product_category' => 'required|exists:category,category_id',
-            //'product_quantity' => 'required|numeric|min:1',
             'product_price' => 'required|numeric|min:0',
             'product_image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048'
         ], [
@@ -79,6 +79,8 @@ class ProductsController extends Controller
             'name' => $request->product_name,
             'category' => $request->product_category,
             'quantity' => 0 ,
+            // Cost and stock are controlled by purchase invoices, not product data entry.
+            'cost_price' => 0,
             'price' => $request->product_price,
             'image' => $imageName, // Save the image name
             'warehouse_id' => $warehouseId, // Save the warehouse_id (default to the first warehouse id)
@@ -112,7 +114,6 @@ class ProductsController extends Controller
        $request->validate([
         'product_name' => 'required|regex:/^[\p{Arabic}\p{Latin}0-9\s]+$/u',
         'product_category' => 'required|exists:category,category_id',
-        'product_quantity' => 'required|numeric|min:1',
         'product_price' => 'required|numeric|min:0',
         'product_image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048'
     ], [
@@ -122,10 +123,6 @@ class ProductsController extends Controller
         'product_category.required' => 'تصنيف المنتج مطلوب.',
         'product_category.exists' => 'تصنيف المنتج المحدد غير صالح.',
     
-        'product_quantity.required' => 'كمية المنتج مطلوبة.',
-        'product_quantity.numeric' => 'يجب أن تكون كمية المنتج رقماً.',
-        'product_quantity.min' => 'يجب أن تكون كمية المنتج على الأقل 1.',
-        
         'product_price.required' => 'سعر المنتج مطلوب.',
         'product_price.numeric' => 'يجب أن يكون سعر المنتج رقماً.',
         'product_price.min' => 'يجب أن يكون سعر المنتج على الأقل 0.',
@@ -135,8 +132,7 @@ class ProductsController extends Controller
         'product_image.max' => 'حجم صورة المنتج يجب ألا يتجاوز 2 ميجابايت.'
     ]);
     
-       $productId = $request->product_image;
-        $imageName = DB::table('products')->where('id', $productId)->value('image');
+        $imageName = DB::table('products')->where('id', $id)->value('image');
 
        // Handle the image upload if there's a file
         if ($request->hasFile('product_image')) {
@@ -156,7 +152,6 @@ class ProductsController extends Controller
        DB::table('products')->where('id', $id)->update([
            'name' => $request->product_name,
            'category' => $request->product_category,
-           'quantity' => $request->product_quantity,
            'price' => $request->product_price,
            'image' => $imageName, // Save the image name
            'updated_at' => now(), // Update the timestamp

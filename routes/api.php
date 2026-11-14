@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controller\Admin\RolesAndPermissionsController;
+use App\Http\Controllers\Admin\RolesAndPermissionsController;
 /*
 |--------------------------------------------------------------------------
 | API Routes

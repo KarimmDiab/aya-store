@@ -236,19 +236,6 @@ class purchasesController extends Controller
             abort(404, 'فاتورة المشتريات غير موجودة.');
         }
 
-        $hasLaterPayments = DB::table('supplier_payments')
-            ->where('purchases_invoice_id', $invoice_id)
-            ->whereNull('deleted_at')
-            ->exists();
-        if ($hasLaterPayments) {
-            $message = 'لا يمكن تعديل الفاتورة بعد تسجيل حركات سداد لاحقة عليها.';
-            if ($request->ajax()) {
-                return response()->json(['message' => $message], 409);
-            }
-
-            return redirect()->route('purchase_invoices')->with('error', $message);
-        }
-
         $invoiceDetails = DB::table('purchase_invoices')
             ->join('purchase_invoices_details', 'purchase_invoices.id', '=', 'purchase_invoices_details.purchase_invoices_id')
             ->join('suppliers', 'purchase_invoices.supplier_id', '=', 'suppliers.id')

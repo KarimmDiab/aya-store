@@ -65,9 +65,7 @@
                                                     <button type="submit" class="btn btn-primary btn-block">
                                                     {{ __('تسجيل الدخول') }}
                                                     </button>
-													<a  class="btn btn-primary btn-block" href="{{ route('gotologin') }}">
-														تسجيل حساب جديد
-													</a>
+													<p class="text-muted text-center mt-3 mb-0">لإنشاء حساب جديد، تواصل مع مدير النظام.</p>
 												</form>
 											</div>
 										</div>

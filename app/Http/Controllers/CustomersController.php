@@ -77,7 +77,7 @@ class CustomersController extends Controller
             ->fromSub($invoiceBalances, 'credit_balances')
             ->join('customers', 'customers.id', '=', 'credit_balances.customer_id')
             ->whereNull('customers.deleted_at')
-            ->where('credit_balances.outstanding', '>', 0)
+            ->where('credit_balances.outstanding', '>', 0.009)
             ->select(
                 'customers.id',
                 'customers.name',

@@ -9,7 +9,6 @@
             'category' => 'الرئيسية',
             'items' => [
                 ['label' => 'الصفحة الرئيسية', 'icon' => 'fa-home',       'route' => 'home'],
-                ['label' => 'DashBoard',       'icon' => 'fa-chart-line', 'url' => url('/index'), 'path' => 'index'],
             ],
         ],
         [
@@ -77,6 +76,18 @@
 
     // Current user + avatar
     $authUser = Auth::user();
+    $permissionModuleForRoute = function (string $route) {
+        if (in_array($route, ['all_users', 'all_roles'], true)) return 'users';
+        if (in_array($route, ['home', 'home_reports'], true)) return $route === 'home' ? 'dashboard' : 'reports';
+        if (in_array($route, ['all_customers', 'credit_customers', 'customer_profile'], true)) return 'customers';
+        if (in_array($route, ['sales_invoice', 'all_sales', 'sales.returns.index'], true)) return 'sales';
+        if (in_array($route, ['suppliers', 'credit_suplliers'], true)) return 'suppliers';
+        if ($route === 'purchase_invoices') return 'purchases';
+        if (in_array($route, ['categories', 'products'], true)) return 'products';
+        if (in_array($route, ['Warehouses', 'branches'], true)) return 'warehouses';
+        if (in_array($route, ['expenses', 'expenses_details', 'showDetails'], true)) return 'expenses';
+        return 'dashboard';
+    };
     $defaultAvatar = asset('images/profile_pic/' . ($authUser->gender === 'male' ? 'male.png' : 'female.png'));
     $avatar = $authUser->profile_picture ? asset('images/profile_pic/' . $authUser->profile_picture) : $defaultAvatar;
 @endphp
@@ -160,7 +171,11 @@
 
                 @foreach ($section['items'] as $item)
                     @if (isset($item['children']))
-                        @php $open = collect($item['children'])->contains(fn ($child) => $isActive($child)); @endphp
+                        @php
+                            $visibleChildren = collect($item['children'])->filter(fn ($child) => $authUser->can($permissionModuleForRoute($child['route']).'.view'));
+                            $open = $visibleChildren->contains(fn ($child) => $isActive($child));
+                        @endphp
+                        @if ($visibleChildren->isNotEmpty())
                         <li class="slide {{ $open ? 'is-expanded' : '' }}" data-open="{{ $open ? 1 : 0 }}">
                             <a class="side-menu__item {{ $open ? 'active' : '' }}" data-toggle="slide" href="javascript:void(0);"
                                aria-expanded="{{ $open ? 'true' : 'false' }}">
@@ -169,7 +184,7 @@
                                 <i class="angle fe fe-chevron-down"></i>
                             </a>
                             <ul class="slide-menu" @if ($open) style="display: block;" @endif>
-                                @foreach ($item['children'] as $child)
+                                @foreach ($visibleChildren as $child)
                                     @php $childActive = $isActive($child); @endphp
                                     <li>
                                         <a class="slide-item {{ $childActive ? 'active' : '' }}"
@@ -179,7 +194,9 @@
                                 @endforeach
                             </ul>
                         </li>
+                        @endif
                     @else
+                        @if (($item['route'] ?? null) === 'home' || $authUser->can($permissionModuleForRoute($item['route'] ?? 'home').'.view'))
                         @php $active = $isActive($item); @endphp
                         <li class="slide">
                             <a class="side-menu__item {{ $active ? 'active' : '' }}"
@@ -189,6 +206,7 @@
                                 <span class="side-menu__label">{{ $item['label'] }}</span>
                             </a>
                         </li>
+                        @endif
                     @endif
                 @endforeach
             @endforeach

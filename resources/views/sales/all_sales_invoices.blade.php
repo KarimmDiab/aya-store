@@ -146,18 +146,23 @@
 												<td>
     <div class="invoice-actions">
         <button type="button" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#detailsSalesInvoice{{ $invoice->sales_invoice_id }}">تفاصيل</button>
-        @if($invoice->return_count > 0)
-            <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="لا يمكن تعديل فاتورة لها مرتجعات">تعديل</button>
-        @else
-            <button type="button" class="btn btn-sm btn-outline-warning" data-toggle="modal" data-target="#editSalesInvoice{{ $invoice->sales_invoice_id }}">تعديل</button>
-        @endif
+        @can('sales.update')
+            @if($invoice->return_count > 0)
+                <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="لا يمكن تعديل فاتورة لها مرتجعات">تعديل</button>
+            @else
+                <button type="button" class="btn btn-sm btn-outline-warning" data-toggle="modal" data-target="#editSalesInvoice{{ $invoice->sales_invoice_id }}">تعديل</button>
+            @endif
+        @endcan
         <a class="btn btn-sm btn-outline-info" href="{{ route('invoice.show', $invoice->sales_invoice_id) }}" target="_blank" rel="noopener">طباعة</a>
-        <button type="button" class="btn btn-sm btn-outline-danger" data-toggle="modal" data-target="#deleteSalesInvoce{{ $invoice->sales_invoice_id }}">حذف</button>
+        @can('sales.delete')<button type="button" class="btn btn-sm btn-outline-danger" data-toggle="modal" data-target="#deleteSalesInvoce{{ $invoice->sales_invoice_id }}">حذف</button>@endcan
     </div>
     @include('sales.partials.invoice_details_modal')
+    @can('sales.update')
     @if($invoice->return_count <= 0)
         @include('sales.partials.invoice_edit_modal')
     @endif
+    @endcan
+    @can('sales.delete')
     <div class="modal fade invoice-modal invoice-delete-modal" id="deleteSalesInvoce{{ $invoice->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
@@ -177,6 +182,7 @@
             </div>
         </div>
     </div>
+    @endcan
 </td>
 												<td>{{ $invoice->invoice_update }}</td>
 											</tr>

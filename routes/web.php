@@ -14,7 +14,6 @@ use App\Http\Controllers\categoryController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseDetailsController;
-use App\Http\Controllers\RegisterUserController;
 use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\ReportsController;
 
@@ -33,29 +32,31 @@ use App\Http\Controllers\ReportsController;
 */
 
 Route::get('/', function () {
-    return view('auth.login');
+    return auth()->check() ? redirect()->route('home') : view('auth.login');
 });
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index']);
 
-Auth::routes();
+Auth::routes(['register' => false]);
 
 
 Route::get('/main', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 Route::get('/{page}', 'App\Http\Controllers\AdminController@index');
 
 // users routes
-Route::get('users/all_users', [UsersController::class, 'index'])->name('all_users');
-Route::post('users', [UsersController::class, 'store'])->name('add_users');
-Route::put('/users/{id}', [UsersController::class, 'update'])->name('updateUser');
-Route::delete('/users/{id}', [UsersController::class, 'destroy'])->name('deleteUser');
+Route::middleware('auth')->group(function () {
+    Route::get('users/all_users', [UsersController::class, 'index'])->middleware('permission:users.view')->name('all_users');
+    Route::post('users', [UsersController::class, 'store'])->middleware('permission:users.create')->name('add_users');
+    Route::put('/users/{id}', [UsersController::class, 'update'])->middleware('permission:users.update')->name('updateUser');
+    Route::delete('/users/{id}', [UsersController::class, 'destroy'])->middleware('permission:users.delete')->name('deleteUser');
 
 
 // roles routes
-Route::get('users/roles', [rolesController::class, 'index'])->name('all_roles');
-Route::post('users/roles', [rolesController::class, 'store'])->name('add_roles');
-Route::delete('/roles/delete/{id}', [rolesController::class, 'destroy'])->name('deleteroles');
-Route::post('/roles/update/{id}', [rolesController::class, 'update'])->name('updateroles');
+    Route::get('users/roles', [rolesController::class, 'index'])->middleware('permission:users.view')->name('all_roles');
+    Route::post('users/roles', [rolesController::class, 'store'])->middleware('permission:users.create')->name('add_roles');
+    Route::delete('/roles/delete/{id}', [rolesController::class, 'destroy'])->middleware('permission:users.delete')->name('deleteroles');
+    Route::post('/roles/update/{id}', [rolesController::class, 'update'])->middleware('permission:users.update')->name('updateroles');
+});
 
 
 //wearhouses routes
@@ -121,16 +122,16 @@ Route::post('purchases/update_price_purchase_invoices/{invoice_id}', [purchasesC
 
 
 //sales invoices routes
-Route::get('sales/sales_invoice', [salesController::class, 'index'])->name('sales_invoice');
-Route::post('sales/sales_invoice', [salesController::class, 'store'])->name('submit_order');
-Route::get('sales/invoice/{id}', [salesController::class, 'show'])->name('invoice.show');
-Route::get('sales/all_sales_invoices', [salesController::class, 'allInvoices'])->name('all_sales');
-Route::get('sales/products/search', [salesController::class, 'searchProducts'])->name('sales.products.search');
-Route::get('sales/returns', [SalesReturnsController::class, 'index'])->name('sales.returns.index');
-Route::post('sales/returns', [SalesReturnsController::class, 'store'])->name('sales.returns.store');
-Route::get('sales/returns/invoice/{id}', [SalesReturnsController::class, 'show'])->name('sales.returns.show');
-Route::delete('sales/invoice/{id}', [salesController::class, 'destroy'])->name('invoice.destroy');
-Route::put('sales/invoice/{id}', [salesController::class, 'update'])->name('invoice.update');
+Route::get('sales/sales_invoice', [salesController::class, 'index'])->middleware('permission:sales.view')->name('sales_invoice');
+Route::post('sales/sales_invoice', [salesController::class, 'store'])->middleware('permission:sales.create')->name('submit_order');
+Route::get('sales/invoice/{id}', [salesController::class, 'show'])->middleware('permission:sales.view')->name('invoice.show');
+Route::get('sales/all_sales_invoices', [salesController::class, 'allInvoices'])->middleware('permission:sales.view')->name('all_sales');
+Route::get('sales/products/search', [salesController::class, 'searchProducts'])->middleware('permission:sales.view')->name('sales.products.search');
+Route::get('sales/returns', [SalesReturnsController::class, 'index'])->middleware('permission:sales.view')->name('sales.returns.index');
+Route::post('sales/returns', [SalesReturnsController::class, 'store'])->middleware('permission:sales.create')->name('sales.returns.store');
+Route::get('sales/returns/invoice/{id}', [SalesReturnsController::class, 'show'])->middleware('permission:sales.view')->name('sales.returns.show');
+Route::delete('sales/invoice/{id}', [salesController::class, 'destroy'])->middleware('permission:sales.delete')->name('invoice.destroy');
+Route::put('sales/invoice/{id}', [salesController::class, 'update'])->middleware('permission:sales.update')->name('invoice.update');
 
 
 
@@ -148,11 +149,6 @@ Route::post('expenses/expenses_details', [ExpenseDetailsController::class, 'stor
 Route::get('expenses/all_expenses', [ExpenseDetailsController::class, 'showDetails'])->name('showDetails');
 Route::put('expenses/all_expenses/{expense}', [ExpenseDetailsController::class, 'update'])->name('expenses.update');
 Route::delete('expenses/all_expenses/{expense}', [ExpenseDetailsController::class, 'destroy'])->name('expenses.destroy');
-
-
-// register users
-Route::get('auth/signup', [RegisterUserController::class, 'index'])->name('gotologin');
-Route::POSt('auth/signup', [RegisterUserController::class, 'store'])->name('register');
 
 
 // customers routes

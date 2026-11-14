@@ -201,7 +201,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($results as $supplier)
+                            @forelse ($results as $supplier)
                                 @php [$pmLabel, $pmClass] = $pm($supplier->payment_method); @endphp
                                 <tr>
                                     {{-- Supplier --}}
@@ -285,7 +285,9 @@
                                         </div>
                                     </td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr><td colspan="9" class="text-center text-muted py-5">لا توجد مديونيات موردين مستحقة حاليًا.</td></tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>

@@ -169,7 +169,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($results as $customer)
+                            @forelse ($results as $customer)
                                 <tr>
                                     {{-- Customer --}}
                                     <td data-order="{{ $customer->name }}" data-search="{{ $customer->id }} {{ $customer->name }}">
@@ -237,7 +237,9 @@
                                         </div>
                                     </td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr><td colspan="7" class="text-center text-muted py-5">لا توجد مديونيات عملاء مستحقة حاليًا.</td></tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>

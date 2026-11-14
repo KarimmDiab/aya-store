@@ -64,16 +64,6 @@ class PurchaseInvoiceService
                 throw ValidationException::withMessages(['purchase_invoices_no' => 'فاتورة المشتريات غير موجودة.']);
             }
 
-            $hasLaterPayments = DB::table('supplier_payments')
-                ->where('purchases_invoice_id', $invoiceId)
-                ->whereNull('deleted_at')
-                ->exists();
-            if ($hasLaterPayments) {
-                throw ValidationException::withMessages([
-                    'invoice' => 'لا يمكن تعديل الفاتورة بعد تسجيل حركات سداد لاحقة عليها.',
-                ]);
-            }
-
             $supplierId = (int) $data['purchase_invoices_supplier'];
             $this->assertActiveSupplier($supplierId);
             $lines = $this->normalizeLines($data);
@@ -114,6 +104,14 @@ class PurchaseInvoiceService
                 'payment_method' => ($remaining > 0.009 || $invoice->payment_method === 'credit') ? 'credit' : 'cash',
                 'updated_at' => now(),
             ]);
+
+            if ($laterPayments > 0) {
+                DB::table('supplier_payments')
+                    ->where('purchases_invoice_id', $invoiceId)
+                    ->whereNull('deleted_at')
+                    ->update(['supplier_id' => $supplierId]);
+                $this->recalculatePaymentBalances($invoiceId, $remaining);
+            }
 
             $this->insertDetails($invoiceId, $lines);
             $affectedProductIds = array_merge(

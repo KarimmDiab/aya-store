@@ -98,37 +98,62 @@
         <div class="db-hero-copy">
             <span class="db-live"><i class="fas fa-circle"></i> بيانات محدثة من النظام</span>
             <h1>أهلاً {{ $userName }}، هذه لمحة عن نشاط المعرض</h1>
-            <p>تابع المبيعات والمخزون والأرصدة والمصروفات من مكان واحد.</p>
+            <p>تظهر هنا الأقسام والمؤشرات المتاحة حسب صلاحيات حسابك.</p>
             <span class="db-date"><i class="far fa-calendar-alt"></i> {{ $dashboardDate }}</span>
         </div>
         <div class="db-hero-actions">
-            <a href="{{ route('sales_invoice') }}" class="btn btn-light"><i class="fas fa-cash-register ml-1"></i> عملية بيع</a>
-            <a href="{{ route('purchase_invoices') }}" class="btn btn-outline-light"><i class="fas fa-cart-plus ml-1"></i> فاتورة شراء</a>
-            <a href="{{ route('expenses_details') }}" class="btn btn-outline-light"><i class="fas fa-plus ml-1"></i> تسجيل مصروف</a>
+            @can('sales.create')<a href="{{ route('sales_invoice') }}" class="btn btn-light"><i class="fas fa-cash-register ml-1"></i> عملية بيع</a>@endcan
+            @can('purchases.create')<a href="{{ route('purchase_invoices') }}" class="btn btn-outline-light"><i class="fas fa-cart-plus ml-1"></i> فاتورة شراء</a>@endcan
+            @can('expenses.create')<a href="{{ route('expenses_details') }}" class="btn btn-outline-light"><i class="fas fa-plus ml-1"></i> تسجيل مصروف</a>@endcan
         </div>
     </section>
 
-    <div class="db-section-head"><div><h2>المؤشرات المالية والتشغيلية</h2><p>ملخص اليوم والشهر الحالي والأرصدة القائمة</p></div><a href="{{ route('home_reports') }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-chart-pie ml-1"></i> كل التقارير</a></div>
+    @canany(['sales.view','purchases.view','expenses.view','customers.view','suppliers.view'])
+    <div class="db-section-head"><div><h2>المؤشرات المالية والتشغيلية</h2><p>ملخص اليوم والشهر الحالي والأرصدة القائمة</p></div>@can('reports.view')<a href="{{ route('home_reports') }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-chart-pie ml-1"></i> كل التقارير</a>@endcan</div>
     <section class="db-kpis">
+        @can('sales.view')
         <article class="db-kpi db-tone-blue"><div class="db-kpi-top"><span class="db-kpi-label">صافي مبيعات اليوم</span><span class="db-kpi-icon"><i class="fas fa-coins"></i></span></div><strong class="db-kpi-value">{{ number_format($dashboardStats['today_sales'], 2) }} ج.م</strong><small>{{ number_format($dashboardStats['today_invoice_count']) }} فاتورة · مرتجعات {{ number_format($dashboardStats['today_returns'], 2) }}</small></article>
         <article class="db-kpi db-tone-green"><div class="db-kpi-top"><span class="db-kpi-label">صافي مبيعات الشهر</span><span class="db-kpi-icon"><i class="fas fa-chart-line"></i></span></div><strong class="db-kpi-value">{{ number_format($dashboardStats['month_sales'], 2) }} ج.م</strong><small>بعد خصم مرتجعات {{ number_format($dashboardStats['month_returns'], 2) }} ج.م</small></article>
+        @endcan
+        @can('purchases.view')
         <article class="db-kpi db-tone-orange"><div class="db-kpi-top"><span class="db-kpi-label">مشتريات الشهر</span><span class="db-kpi-icon"><i class="fas fa-truck-loading"></i></span></div><strong class="db-kpi-value">{{ number_format($dashboardStats['month_purchases'], 2) }} ج.م</strong><small>{{ number_format($dashboardStats['purchase_invoice_count']) }} فاتورة شراء</small></article>
+        @endcan
+        @can('expenses.view')
         <article class="db-kpi db-tone-red"><div class="db-kpi-top"><span class="db-kpi-label">مصروفات الشهر</span><span class="db-kpi-icon"><i class="fas fa-receipt"></i></span></div><strong class="db-kpi-value">{{ number_format($dashboardStats['month_expenses'], 2) }} ج.م</strong><small>من سجل المصروفات النشط</small></article>
+        @endcan
+        @can('customers.view')
         <article class="db-kpi db-tone-violet"><div class="db-kpi-top"><span class="db-kpi-label">مستحقات العملاء</span><span class="db-kpi-icon"><i class="fas fa-user-clock"></i></span></div><strong class="db-kpi-value">{{ number_format($dashboardStats['customer_balances'], 2) }} ج.م</strong><small>مديونيات آجلة قائمة</small></article>
+        @endcan
+        @can('suppliers.view')
         <article class="db-kpi db-tone-cyan"><div class="db-kpi-top"><span class="db-kpi-label">مستحقات الموردين</span><span class="db-kpi-icon"><i class="fas fa-file-invoice-dollar"></i></span></div><strong class="db-kpi-value">{{ number_format($dashboardStats['supplier_balances'], 2) }} ج.م</strong><small>أرصدة فواتير الشراء القائمة</small></article>
+        @endcan
     </section>
+    @endcanany
 
+    @canany(['products.view','customers.view','suppliers.view','warehouses.view','users.view'])
     <section class="db-stat-strip" aria-label="إحصاءات النظام">
+        @can('products.view')
         <div class="db-stat"><strong>{{ number_format($dashboardStats['product_count']) }}</strong><span>منتج نشط</span></div>
         <div class="db-stat"><strong>{{ number_format($dashboardStats['stock_units']) }}</strong><span>وحدة في المخزون</span></div>
         <div class="db-stat"><strong>{{ number_format($dashboardStats['stock_value'], 2) }} ج.م</strong><span>قيمة المخزون بالتكلفة</span></div>
         <div class="db-stat"><strong>{{ number_format($dashboardStats['low_stock_count']) }}</strong><span>منتج عند حد إعادة الطلب</span></div>
+        @endcan
+        @can('customers.view')
         <div class="db-stat"><strong>{{ number_format($counts['customers']) }}</strong><span>عميل نشط</span></div>
+        @endcan
+        @can('suppliers.view')
         <div class="db-stat"><strong>{{ number_format($counts['suppliers']) }}</strong><span>مورد نشط</span></div>
+        @endcan
+        @can('warehouses.view')
         <div class="db-stat"><strong>{{ number_format($counts['warehouses']) }} / {{ number_format($counts['branches']) }}</strong><span>مخزن / فرع</span></div>
+        @endcan
+        @can('users.view')
         <div class="db-stat"><strong>{{ number_format($counts['users']) }} / {{ number_format($counts['categories']) }}</strong><span>مستخدم / تصنيف</span></div>
+        @endcan
     </section>
+    @endcanany
 
+    @can('sales.view')
     <div class="db-section-head"><div><h2>اتجاه المبيعات</h2><p>آخر 30 يومًا · المرتجعات تظهر منفصلة</p></div></div>
     <section class="db-grid-main">
         <article class="db-card">
@@ -147,8 +172,11 @@
             </table></div>
         </article>
     </section>
+    @endcan
 
+    @canany(['products.view','expenses.view'])
     <section class="db-lists">
+        @can('products.view')
         <article class="db-card">
             <header class="db-card-head"><div><h3>تنبيهات المخزون</h3><p>المنتجات التي تحتاج متابعة</p></div><a href="{{ route('inventory_low_stock') }}">تقرير المخزون</a></header>
             <div class="db-list">
@@ -157,6 +185,8 @@
                 @empty<div class="db-empty">لا توجد منتجات عند حد إعادة الطلب.</div>@endforelse
             </div>
         </article>
+        @endcan
+        @can('expenses.view')
         <article class="db-card">
             <header class="db-card-head"><div><h3>المصروفات الأخيرة</h3><p>أحدث القيود المسجلة</p></div><a href="{{ route('showDetails') }}">عرض المصروفات</a></header>
             <div class="db-list">
@@ -165,29 +195,24 @@
                 @empty<div class="db-empty">لا توجد مصروفات مسجلة.</div>@endforelse
             </div>
         </article>
+        @endcan
     </section>
+    @endcanany
 
     <div class="db-section-head">
         <div><h2>الوصول السريع لأقسام البرنامج</h2><p>انتقل مباشرة إلى أهم الشاشات والعمليات</p></div>
         <input type="search" id="dashboardQuickSearch" class="form-control db-quick-search" placeholder="ابحث عن قسم..." aria-label="البحث في أقسام البرنامج">
     </div>
     <nav class="db-quick-grid" aria-label="أقسام البرنامج">
-        <a class="db-quick" data-quick-link href="{{ route('all_sales') }}"><span class="db-quick-icon"><i class="fas fa-receipt"></i></span><span>فواتير المبيعات</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('sales.returns.index') }}"><span class="db-quick-icon"><i class="fas fa-undo"></i></span><span>مرتجعات المبيعات</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('purchase_invoices') }}"><span class="db-quick-icon"><i class="fas fa-file-invoice"></i></span><span>فواتير المشتريات</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('products') }}"><span class="db-quick-icon"><i class="fas fa-box-open"></i></span><span>المنتجات والمخزون</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('categories') }}"><span class="db-quick-icon"><i class="fas fa-tags"></i></span><span>تصنيفات المنتجات</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('all_customers') }}"><span class="db-quick-icon"><i class="fas fa-users"></i></span><span>العملاء</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('credit_customers') }}"><span class="db-quick-icon"><i class="fas fa-hand-holding-usd"></i></span><span>مديونيات العملاء</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('suppliers') }}"><span class="db-quick-icon"><i class="fas fa-truck"></i></span><span>الموردون</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('credit_suplliers') }}"><span class="db-quick-icon"><i class="fas fa-file-invoice-dollar"></i></span><span>مستحقات الموردين</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('showDetails') }}"><span class="db-quick-icon"><i class="fas fa-receipt"></i></span><span>المصروفات</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('Warehouses') }}"><span class="db-quick-icon"><i class="fas fa-warehouse"></i></span><span>المخازن</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('branches') }}"><span class="db-quick-icon"><i class="fas fa-store"></i></span><span>الفروع</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('all_users') }}"><span class="db-quick-icon"><i class="fas fa-user-shield"></i></span><span>المستخدمون</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('all_roles') }}"><span class="db-quick-icon"><i class="fas fa-users-cog"></i></span><span>الأدوار والصلاحيات</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('expenses') }}"><span class="db-quick-icon"><i class="fas fa-list-ul"></i></span><span>بنود المصروفات</span></a>
-        <a class="db-quick" data-quick-link href="{{ route('home_reports') }}"><span class="db-quick-icon"><i class="fas fa-chart-pie"></i></span><span>التقارير</span></a>
+        @can('sales.view')<a class="db-quick" data-quick-link href="{{ route('all_sales') }}"><span class="db-quick-icon"><i class="fas fa-receipt"></i></span><span>فواتير المبيعات</span></a><a class="db-quick" data-quick-link href="{{ route('sales.returns.index') }}"><span class="db-quick-icon"><i class="fas fa-undo"></i></span><span>مرتجعات المبيعات</span></a>@endcan
+        @can('purchases.view')<a class="db-quick" data-quick-link href="{{ route('purchase_invoices') }}"><span class="db-quick-icon"><i class="fas fa-file-invoice"></i></span><span>فواتير المشتريات</span></a>@endcan
+        @can('products.view')<a class="db-quick" data-quick-link href="{{ route('products') }}"><span class="db-quick-icon"><i class="fas fa-box-open"></i></span><span>المنتجات والمخزون</span></a><a class="db-quick" data-quick-link href="{{ route('categories') }}"><span class="db-quick-icon"><i class="fas fa-tags"></i></span><span>تصنيفات المنتجات</span></a>@endcan
+        @can('customers.view')<a class="db-quick" data-quick-link href="{{ route('all_customers') }}"><span class="db-quick-icon"><i class="fas fa-users"></i></span><span>العملاء</span></a><a class="db-quick" data-quick-link href="{{ route('credit_customers') }}"><span class="db-quick-icon"><i class="fas fa-hand-holding-usd"></i></span><span>مديونيات العملاء</span></a>@endcan
+        @can('suppliers.view')<a class="db-quick" data-quick-link href="{{ route('suppliers') }}"><span class="db-quick-icon"><i class="fas fa-truck"></i></span><span>الموردون</span></a><a class="db-quick" data-quick-link href="{{ route('credit_suplliers') }}"><span class="db-quick-icon"><i class="fas fa-file-invoice-dollar"></i></span><span>مستحقات الموردين</span></a>@endcan
+        @can('expenses.view')<a class="db-quick" data-quick-link href="{{ route('showDetails') }}"><span class="db-quick-icon"><i class="fas fa-receipt"></i></span><span>المصروفات</span></a><a class="db-quick" data-quick-link href="{{ route('expenses') }}"><span class="db-quick-icon"><i class="fas fa-list-ul"></i></span><span>بنود المصروفات</span></a>@endcan
+        @can('warehouses.view')<a class="db-quick" data-quick-link href="{{ route('Warehouses') }}"><span class="db-quick-icon"><i class="fas fa-warehouse"></i></span><span>المخازن</span></a><a class="db-quick" data-quick-link href="{{ route('branches') }}"><span class="db-quick-icon"><i class="fas fa-store"></i></span><span>الفروع</span></a>@endcan
+        @can('users.view')<a class="db-quick" data-quick-link href="{{ route('all_users') }}"><span class="db-quick-icon"><i class="fas fa-user-shield"></i></span><span>المستخدمون</span></a><a class="db-quick" data-quick-link href="{{ route('all_roles') }}"><span class="db-quick-icon"><i class="fas fa-users-cog"></i></span><span>الأدوار والصلاحيات</span></a>@endcan
+        @can('reports.view')<a class="db-quick" data-quick-link href="{{ route('home_reports') }}"><span class="db-quick-icon"><i class="fas fa-chart-pie"></i></span><span>التقارير</span></a>@endcan
         <div class="db-quick-empty" id="dashboardQuickEmpty">لا توجد أقسام تطابق البحث.</div>
     </nav>
     <p class="db-footnote">الأرقام تستند إلى السجلات النشطة. صافي المبيعات يخصم المرتجعات المسجلة، وقيمة المخزون تقديرية باستخدام تكلفة الأصناف المسجلة.</p>
@@ -209,6 +234,7 @@
         document.getElementById('dashboardQuickEmpty').style.display = visibleCount ? 'none' : 'block';
     });
 
+    @can('sales.view')
     new Chart(document.getElementById('dashboardSalesChart').getContext('2d'), {
         type: 'line',
         data: {
@@ -220,5 +246,6 @@
         },
         options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, scales: { y: { beginAtZero: true } } }
     });
+    @endcan
 </script>
 @endsection

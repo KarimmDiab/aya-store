@@ -331,20 +331,12 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
 
-                                        @if ((float) ($invoice->total_amount_paid ?? 0) > 0.009)
-                                            <span class="pi-action-disabled" title="لا يمكن تعديل الفاتورة لوجود حركات سداد لاحقة" aria-label="التعديل مقفول لوجود حركات سداد لاحقة">
-                                                <button type="button" class="pi-icon-btn edit" disabled aria-disabled="true">
-                                                    <i class="fas fa-lock"></i>
-                                                </button>
-                                            </span>
-                                        @else
-                                            <button type="button" class="pi-icon-btn edit js-edit-purchase-invoice"
-                                                    data-invoice-id="{{ $invoice->id }}"
-                                                    data-edit-url="{{ route('purchase_invoices.edit', ['invoice_id' => $invoice->id]) }}"
-                                                    title="تعديل الفاتورة" aria-label="تعديل الفاتورة {{ $invoice->id }}">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                        @endif
+                                        <button type="button" class="pi-icon-btn edit js-edit-purchase-invoice"
+                                                data-invoice-id="{{ $invoice->id }}"
+                                                data-edit-url="{{ route('purchase_invoices.edit', ['invoice_id' => $invoice->id]) }}"
+                                                title="تعديل الفاتورة" aria-label="تعديل الفاتورة {{ $invoice->id }}">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
 
                                         <button type="button" class="pi-icon-btn delete" title="مسح" aria-label="مسح الفاتورة {{ $invoice->id }}"
                                                 data-toggle="modal" data-target="#deleteInvoiceModal"

@@ -61,6 +61,7 @@ class SuppliersController extends Controller
                 $join->on('credit_totals.supplier_id', '=', 'suppliers.id');
             })
             ->whereNull('suppliers.deleted_at')
+            ->where('credit_totals.total_remaining', '>', 0.009)
             ->select(
                 'suppliers.id',
                 'suppliers.name',

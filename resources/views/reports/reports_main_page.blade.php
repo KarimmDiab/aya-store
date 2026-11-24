@@ -113,6 +113,7 @@
             ['t'=>'المدفوعات وأرصدة الموردين', 'i'=>'fa-file-invoice-dollar', 'r'=>route('purchase_report_payments'), 'm'=>'get'],
         ]],
         ['key'=>'profit', 'title'=>'تقارير الأرباح', 'icon'=>'fa-money-bill-wave', 'color'=>'c-profit', 'items'=>[
+            ['t'=>'التقرير الموحد للمشتريات والمبيعات والمخزون والربح', 'i'=>'fa-file-invoice-dollar', 'r'=>route('reports.consolidated'), 'm'=>'get'],
             ['t'=>'تقدير الربح الإجمالي خلال فترة', 'i'=>'fa-coins', 'r'=>route('profit_report_summary'), 'm'=>'get'],
             ['t'=>'مقارنة الربح بين فترتين متساويتين', 'i'=>'fa-balance-scale', 'r'=>route('profit_report_comparison'), 'm'=>'get'],
         ]],

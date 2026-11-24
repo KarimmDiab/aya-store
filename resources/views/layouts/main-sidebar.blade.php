@@ -32,6 +32,7 @@
                     ['label' => 'الموردين',                     'route' => 'suppliers', 'also' => ['supplier_profile']],
                     ['label' => 'موردين الأجل',                 'route' => 'credit_suplliers'],
                     ['label' => 'فواتير المشتريات',             'route' => 'purchase_invoices'],
+                    ['label' => 'مرتجعات المشتريات',            'route' => 'purchases.returns.index', 'also' => ['purchases.returns.*']],
                 ]],
                 ['label' => 'المنتجات', 'icon' => 'fa-box', 'children' => [
                     ['label' => 'تصنيفات المنتجات', 'route' => 'categories'],
@@ -82,7 +83,7 @@
         if (in_array($route, ['all_customers', 'credit_customers', 'customer_profile'], true)) return 'customers';
         if (in_array($route, ['sales_invoice', 'all_sales', 'sales.returns.index'], true)) return 'sales';
         if (in_array($route, ['suppliers', 'credit_suplliers'], true)) return 'suppliers';
-        if ($route === 'purchase_invoices') return 'purchases';
+        if (in_array($route, ['purchase_invoices', 'purchases.returns.index'], true)) return 'purchases';
         if (in_array($route, ['categories', 'products'], true)) return 'products';
         if (in_array($route, ['Warehouses', 'branches'], true)) return 'warehouses';
         if (in_array($route, ['expenses', 'expenses_details', 'showDetails'], true)) return 'expenses';

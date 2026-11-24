@@ -16,7 +16,7 @@
 
     if (in_array($reportType, ['summary', 'low_stock'], true)) {
         $chartProducts = $reportType === 'summary'
-            ? $products->sortByDesc(fn ($product) => $product->purchased_quantity + $product->sold_quantity + $product->returned_quantity)->take(8)->values()
+            ? $products->sortByDesc(fn ($product) => $product->purchased_quantity + $product->purchase_returned_quantity + $product->sold_quantity + $product->returned_quantity)->take(8)->values()
             : $products->take(10)->values();
     }
 @endphp
@@ -64,6 +64,7 @@
     .inv-badge.purchase { color:#117a54; background:#e8f7f0; }
     .inv-badge.sale { color:#b7444e; background:#fff0f0; }
     .inv-badge.return { color:#8058ba; background:#f2edfb; }
+    .inv-badge.return-out { color:#bd3f49; background:#ffeded; }
     .inv-badge.low { color:#a56508; background:#fff5df; }
     .inv-badge.out { color:#bd3f49; background:#ffeded; }
     .inv-empty { padding:42px 16px !important; color:var(--inv-muted) !important; text-align:center; }
@@ -118,10 +119,10 @@
         </section>
 
         <section class="inv-card">
-            <div class="inv-card-head"><div><h2>رصيد المخزون حسب المنتج</h2><p>الوارد = المشتريات + المرتجعات، والمنصرف = المبيعات.</p></div><input class="form-control inv-search" type="search" data-table-search placeholder="ابحث باسم المنتج أو التصنيف"></div>
+            <div class="inv-card-head"><div><h2>رصيد المخزون حسب المنتج</h2><p>صافي الوارد = المشتريات − مرتجعات المورد + مرتجعات المبيعات.</p></div><input class="form-control inv-search" type="search" data-table-search placeholder="ابحث باسم المنتج أو التصنيف"></div>
             <div class="inv-table-wrap">
                 <table class="inv-table table" id="inventoryTable">
-                    <thead><tr><th>المنتج</th><th>التصنيف</th><th>رصيد البداية</th><th>مشتريات</th><th>مرتجعات</th><th>إجمالي الوارد</th><th>مبيعات</th><th>رصيد النهاية</th></tr></thead>
+                    <thead><tr><th>المنتج</th><th>التصنيف</th><th>رصيد البداية</th><th>مشتريات</th><th>مرتجع للمورد</th><th>مرتجع من عميل</th><th>صافي الوارد</th><th>مبيعات</th><th>رصيد النهاية</th></tr></thead>
                     <tbody>
                     @forelse ($products as $product)
                         <tr>
@@ -129,13 +130,14 @@
                             <td>{{ $product->category_name }}</td>
                             <td class="inv-number">{{ number_format($product->opening_quantity) }}</td>
                             <td class="inv-number inv-positive">+{{ number_format($product->purchased_quantity) }}</td>
+                            <td class="inv-number inv-negative">−{{ number_format($product->purchase_returned_quantity) }}</td>
                             <td class="inv-number inv-positive">+{{ number_format($product->returned_quantity) }}</td>
                             <td class="inv-number inv-positive">+{{ number_format($product->received_quantity) }}</td>
                             <td class="inv-number inv-negative">−{{ number_format($product->sold_quantity) }}</td>
                             <td class="inv-number">{{ number_format($product->closing_quantity) }}</td>
                         </tr>
                     @empty
-                        <tr><td class="inv-empty" colspan="8">لا توجد منتجات لعرضها.</td></tr>
+                        <tr><td class="inv-empty" colspan="9">لا توجد منتجات لعرضها.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
@@ -149,6 +151,7 @@
         <section class="inv-kpis" aria-label="ملخص حركة المخزون">
             <div class="inv-kpi"><span class="inv-kpi-label"><i class="fas fa-truck"></i> مشتريات مستلمة</span><strong class="inv-kpi-value inv-positive">{{ number_format($stats->purchased_quantity) }}</strong><small>وحدة واردة</small></div>
             <div class="inv-kpi"><span class="inv-kpi-label"><i class="fas fa-undo"></i> مرتجعات المبيعات</span><strong class="inv-kpi-value inv-positive">{{ number_format($stats->returned_quantity) }}</strong><small>وحدة عادت للمخزون</small></div>
+            <div class="inv-kpi"><span class="inv-kpi-label"><i class="fas fa-truck-loading"></i> مرتجعات للمورد</span><strong class="inv-kpi-value inv-negative">{{ number_format($stats->purchase_returned_quantity) }}</strong><small>وحدة خرجت من المخزون</small></div>
             <div class="inv-kpi"><span class="inv-kpi-label"><i class="fas fa-cash-register"></i> مبيعات مصروفة</span><strong class="inv-kpi-value inv-negative">{{ number_format($stats->sold_quantity) }}</strong><small>وحدة منصرفة</small></div>
             <div class="inv-kpi"><span class="inv-kpi-label"><i class="fas fa-exchange-alt"></i> صافي التغير</span><strong class="inv-kpi-value">{{ number_format($stats->received_quantity - $stats->sold_quantity) }}</strong><small>الوارد ناقص المنصرف</small></div>
             <div class="inv-kpi"><span class="inv-kpi-label"><i class="fas fa-list"></i> إجمالي الحركات</span><strong class="inv-kpi-value">{{ number_format($movements->total()) }}</strong><small>حركة مسجلة بالفترة</small></div>
@@ -160,7 +163,7 @@
                     <thead><tr><th>التاريخ</th><th>نوع الحركة</th><th>المنتج</th><th>المرجع</th><th>وارد</th><th>منصرف</th></tr></thead>
                     <tbody>
                     @forelse ($movements as $movement)
-                        @php $badge = $movement->movement_type === 'استلام شراء' ? 'purchase' : ($movement->movement_type === 'صرف مبيعات' ? 'sale' : 'return'); @endphp
+                        @php $badge = $movement->movement_type === 'استلام شراء' ? 'purchase' : ($movement->movement_type === 'صرف مبيعات' ? 'sale' : ($movement->movement_type === 'مرتجع مشتريات' ? 'return-out' : 'return')); @endphp
                         <tr>
                             <td class="inv-number">{{ $movement->movement_date }}</td>
                             <td><span class="inv-badge {{ $badge }}">{{ $movement->movement_type }}</span></td>
@@ -268,7 +271,7 @@
     @elseif ($reportType === 'movements')
         new Chart(document.getElementById('inventoryChart').getContext('2d'), {
             type: 'bar',
-            data: { labels: ['مشتريات', 'مرتجعات', 'مبيعات'], datasets: [{ label: 'كمية الوحدات', data: [{{ $stats->purchased_quantity }}, {{ $stats->returned_quantity }}, {{ $stats->sold_quantity }}], backgroundColor: ['rgba(19, 134, 92, .72)', 'rgba(128, 88, 186, .72)', 'rgba(215, 78, 85, .72)'], borderRadius: 6 }] },
+            data: { labels: ['مشتريات', 'مرتجعات المبيعات', 'مرتجعات المورد', 'مبيعات'], datasets: [{ label: 'كمية الوحدات', data: [{{ $stats->purchased_quantity }}, {{ $stats->returned_quantity }}, {{ $stats->purchase_returned_quantity }}, {{ $stats->sold_quantity }}], backgroundColor: ['rgba(19, 134, 92, .72)', 'rgba(128, 88, 186, .72)', 'rgba(215, 78, 85, .72)', 'rgba(215, 78, 85, .5)'], borderRadius: 6 }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
         });
     @endif

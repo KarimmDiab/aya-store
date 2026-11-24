@@ -4,13 +4,14 @@
 	//P-scrolling
 	
 	
-	const ps2 = new PerfectScrollbar('.chat-scroll', {
-	  useBothWheelAxes:true,
-	  suppressScrollX:true,
-	});
-	const ps3 = new PerfectScrollbar('.Notification-scroll', {
-	  useBothWheelAxes:true,
-	  suppressScrollX:true,
+	['.chat-scroll', '.Notification-scroll'].forEach(function (selector) {
+	  const element = document.querySelector(selector);
+	  if (element) {
+		new PerfectScrollbar(element, {
+		  useBothWheelAxes: true,
+		  suppressScrollX: true,
+		});
+	  }
 	});
 	
 	

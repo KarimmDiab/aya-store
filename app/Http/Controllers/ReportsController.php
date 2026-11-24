@@ -20,6 +20,93 @@ class ReportsController extends Controller
         return view('reports.reports_main_page', compact('products', 'branches', 'customers', 'users'));
     }
 
+    public function consolidatedSummary(Request $request)
+    {
+        [$startDate, $endDate] = $this->validatedPurchasePeriod($request);
+
+        $purchaseInvoices = DB::table('purchase_invoices')
+            ->whereDate('date', '>=', $startDate)->whereDate('date', '<=', $endDate)
+            ->whereNull('deleted_at');
+        $purchaseStats = (object) [
+            'invoice_count' => (int) (clone $purchaseInvoices)->count(),
+            'amount' => (float) (clone $purchaseInvoices)->sum('total_amount'),
+            'return_count' => (int) DB::table('purchase_return_invoices')->whereDate('created_at', '>=', $startDate)->whereDate('created_at', '<=', $endDate)->whereNull('deleted_at')->count(),
+            'return_amount' => (float) DB::table('purchase_return_invoices')->whereDate('created_at', '>=', $startDate)->whereDate('created_at', '<=', $endDate)->whereNull('deleted_at')->sum('total_amount'),
+            'return_quantity' => (float) DB::table('purchase_return_invoice_details as details')
+                ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+                ->whereDate('returns.created_at', '>=', $startDate)->whereDate('returns.created_at', '<=', $endDate)
+                ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')->sum('details.quantity'),
+            'quantity' => (float) DB::table('purchase_invoices_details as details')
+                ->join('purchase_invoices as invoices', 'invoices.id', '=', 'details.purchase_invoices_id')
+                ->whereDate('invoices.date', '>=', $startDate)->whereDate('invoices.date', '<=', $endDate)
+                ->whereNull('invoices.deleted_at')->whereNull('details.deleted_at')->sum('details.quantity'),
+        ];
+
+        $salesInvoices = DB::table('sales_invoices')
+            ->whereDate('created_at', '>=', $startDate)->whereDate('created_at', '<=', $endDate)
+            ->whereNull('deleted_at');
+        $salesStats = (object) [
+            'invoice_count' => (int) (clone $salesInvoices)->count(),
+            'amount' => (float) (clone $salesInvoices)->sum(DB::raw('COALESCE(net_total, total_amount - COALESCE(deduction, 0))')),
+            'quantity' => (float) DB::table('sales_invoice_details as details')
+                ->join('sales_invoices as invoices', 'invoices.id', '=', 'details.invoice_id')
+                ->whereDate('invoices.created_at', '>=', $startDate)->whereDate('invoices.created_at', '<=', $endDate)
+                ->whereNull('invoices.deleted_at')->whereNull('details.deleted_at')->sum('details.quantity'),
+        ];
+
+        $returnInvoices = DB::table('sales_return_invoices')
+            ->whereDate('created_at', '>=', $startDate)->whereDate('created_at', '<=', $endDate)
+            ->whereNull('deleted_at');
+        $returns = (object) [
+            'invoice_count' => (int) (clone $returnInvoices)->count(),
+            'amount' => (float) (clone $returnInvoices)->sum('total_amount'),
+            'quantity' => (float) DB::table('sales_return_invoice_details as details')
+                ->join('sales_return_invoices as invoices', 'invoices.id', '=', 'details.return_invoice_id')
+                ->whereDate('invoices.created_at', '>=', $startDate)->whereDate('invoices.created_at', '<=', $endDate)
+                ->whereNull('invoices.deleted_at')->whereNull('details.deleted_at')->sum('details.quantity'),
+        ];
+
+        $expensesAmount = (float) DB::table('expenses_details')
+            ->whereDate('expenses_date', '>=', $startDate)->whereDate('expenses_date', '<=', $endDate)
+            ->whereNull('deleted_at')->sum('expenses_cost');
+
+        $profitData = $this->profitPeriodData($startDate, $endDate);
+        [$stockProducts, $stockStats] = $this->inventorySnapshot($startDate, $endDate);
+        $stockCosts = DB::table('purchase_invoices_details as details')
+            ->join('purchase_invoices as invoices', 'invoices.id', '=', 'details.purchase_invoices_id')
+            ->whereDate('invoices.date', '<=', $endDate)
+            ->whereNull('invoices.deleted_at')->whereNull('details.deleted_at')
+            ->select('details.product_id')
+            ->selectRaw('SUM(details.quantity) as quantity, SUM(details.quantity * details.price_per_pices) as cost')
+            ->groupBy('details.product_id')->get()->keyBy('product_id');
+        $stockPurchaseReturns = $this->purchaseReturnCostsByProduct('1000-01-01', $endDate);
+        $stockCosts = $stockCosts->map(function ($purchase, $productId) use ($stockPurchaseReturns) {
+            $returned = $stockPurchaseReturns->get($productId);
+            $purchase->quantity = max(0, (float) $purchase->quantity - (float) ($returned->returned_quantity ?? 0));
+            $purchase->cost = max(0, (float) $purchase->cost - (float) ($returned->returned_cost ?? 0));
+            return $purchase;
+        });
+        $productCosts = DB::table('products')->get(['id', 'cost_price'])->keyBy('id');
+        $remainingStockCost = $stockProducts->sum(function ($product) use ($stockCosts, $productCosts) {
+            $purchase = $stockCosts->get($product->product_id);
+            $fallback = $productCosts->get($product->product_id);
+            $unitCost = (float) ($purchase->quantity ?? 0) > 0
+                ? (float) $purchase->cost / (float) $purchase->quantity
+                : (float) ($fallback->cost_price ?? 0);
+
+            return max(0, $product->closing_quantity) * $unitCost;
+        });
+
+        return view('reports.consolidated_summary', [
+            'startDate' => $startDate, 'endDate' => $endDate,
+            'purchaseStats' => $purchaseStats, 'salesStats' => $salesStats, 'returns' => $returns,
+            'remainingQuantity' => $stockStats->closing_quantity,
+            'remainingStockCost' => $remainingStockCost,
+            'expensesAmount' => $expensesAmount,
+            'profitStats' => $profitData['stats'],
+        ]);
+    }
+
     public function salesPerPeriod(Request $request)
     {
         [$startDate, $endDate] = $this->validatedPurchasePeriod($request);
@@ -69,9 +156,31 @@ class ReportsController extends Controller
             ->keyBy('product_id');
 
         $productIds = $sales->keys()->merge($returnItems->keys())->unique();
-        $total_sales = $productIds->map(function ($productId) use ($sales, $returnItems) {
+        $purchaseCosts = DB::table('purchase_invoices_details as details')
+            ->join('purchase_invoices as invoices', 'invoices.id', '=', 'details.purchase_invoices_id')
+            ->whereDate('invoices.date', '>=', $startDate)
+            ->whereDate('invoices.date', '<=', $endDate)
+            ->whereNull('invoices.deleted_at')
+            ->whereNull('details.deleted_at')
+            ->whereIn('details.product_id', $productIds)
+            ->select('details.product_id')
+            ->selectRaw('SUM(details.quantity) as purchased_quantity, SUM(details.quantity * details.price_per_pices) as purchase_cost')
+            ->groupBy('details.product_id')
+            ->get()
+            ->keyBy('product_id');
+        $currentCosts = DB::table('products')->whereIn('id', $productIds)->get(['id', 'cost_price'])->keyBy('id');
+        $purchaseReturnCosts = $this->purchaseReturnCostsByProduct($startDate, $endDate);
+
+        $total_sales = $productIds->map(function ($productId) use ($sales, $returnItems, $purchaseCosts, $purchaseReturnCosts, $currentCosts) {
             $sale = $sales->get($productId);
             $return = $returnItems->get($productId);
+            $purchase = $purchaseCosts->get($productId);
+            $currentCost = $currentCosts->get($productId);
+            $purchaseReturn = $purchaseReturnCosts->get($productId);
+            $purchasedQuantity = max(0, (float) ($purchase->purchased_quantity ?? 0) - (float) ($purchaseReturn->returned_quantity ?? 0));
+            $unitCost = $purchasedQuantity > 0
+                ? max(0, (float) $purchase->purchase_cost - (float) ($purchaseReturn->returned_cost ?? 0)) / $purchasedQuantity
+                : (float) ($currentCost->cost_price ?? 0);
             $soldQuantity = (int) ($sale->total_sold_quantity ?? 0);
             $returnedQuantity = (int) ($return->returned_quantity ?? 0);
             $grossSales = (float) ($sale->gross_sales ?? 0);
@@ -85,10 +194,14 @@ class ReportsController extends Controller
                 'returned_quantity' => $returnedQuantity,
                 'net_sold_quantity' => $soldQuantity - $returnedQuantity,
                 'avg_selling_price' => $soldQuantity ? round($grossSales / $soldQuantity, 2) : 0,
+                'unit_cost' => $unitCost > 0 ? round($unitCost, 2) : null,
                 'gross_sales' => round($grossSales, 2),
                 'sales_amount' => round($salesAmount, 2),
                 'returned_amount' => round($returnedAmount, 2),
                 'net_sales' => round($salesAmount - $returnedAmount, 2),
+                'net_profit' => $unitCost > 0
+                    ? round(($salesAmount - $returnedAmount) - (($soldQuantity - $returnedQuantity) * $unitCost), 2)
+                    : null,
             ];
         })->sortBy('product_name')->values();
 
@@ -472,7 +585,15 @@ class ReportsController extends Controller
             ->whereNull('details.deleted_at')
             ->selectRaw("DATE(returns.created_at) as movement_date, details.id as movement_id, details.product_id, COALESCE(products.name, 'منتج محذوف') as product_name, 'مرتجع مبيعات' as movement_type, returns.id as reference, details.quantity as quantity_in, 0 as quantity_out");
 
-        $movementUnion = $purchaseMovements->unionAll($salesMovements)->unionAll($returnMovements);
+        $purchaseReturnMovements = DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->leftJoin('products', 'products.id', '=', 'details.product_id')
+            ->whereDate('returns.created_at', '>=', $startDate)
+            ->whereDate('returns.created_at', '<=', $endDate)
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')
+            ->selectRaw("DATE(returns.created_at) as movement_date, details.id as movement_id, details.product_id, COALESCE(products.name, 'منتج محذوف') as product_name, 'مرتجع مشتريات' as movement_type, returns.id as reference, 0 as quantity_in, details.quantity as quantity_out");
+
+        $movementUnion = $purchaseMovements->unionAll($salesMovements)->unionAll($returnMovements)->unionAll($purchaseReturnMovements);
         $movements = DB::query()
             ->fromSub($movementUnion, 'movements')
             ->orderByDesc('movement_date')
@@ -522,6 +643,7 @@ class ReportsController extends Controller
             ->keyBy('report_date');
 
         $payments = $this->supplierPaymentTotalsByDate($startDate, $endDate);
+        $purchaseReturns = $this->purchaseReturnsByDate($startDate, $endDate);
         $dailyRows = collect();
         $day = \Illuminate\Support\Carbon::parse($startDate);
         $lastDay = \Illuminate\Support\Carbon::parse($endDate);
@@ -533,10 +655,14 @@ class ReportsController extends Controller
             $date = $day->toDateString();
             $invoice = $invoices->get($date);
             $payment = $payments->get($date);
+            $purchaseReturn = $purchaseReturns->get($date);
             $dailyRows->push((object) [
                 'report_date' => $date,
                 'invoice_count' => (int) ($invoice->invoice_count ?? 0),
                 'purchase_amount' => (float) ($invoice->purchase_amount ?? 0),
+                'return_count' => (int) ($purchaseReturn->return_count ?? 0),
+                'return_amount' => (float) ($purchaseReturn->return_amount ?? 0),
+                'net_purchase_amount' => (float) ($invoice->purchase_amount ?? 0) - (float) ($purchaseReturn->return_amount ?? 0),
                 'invoice_paid' => (float) ($invoice->invoice_paid ?? 0),
                 'later_payments' => (float) ($payment->payment_amount ?? 0),
                 'paid_amount' => (float) ($invoice->invoice_paid ?? 0) + (float) ($payment->payment_amount ?? 0),
@@ -552,9 +678,13 @@ class ReportsController extends Controller
         $opening = $balanceSnapshots->sum('opening_payable');
         $closing = $balanceSnapshots->sum('closing_payable');
         $laterPaymentTotal = $payments->sum('payment_amount');
+        $returnAmount = $purchaseReturns->sum('return_amount');
         $stats = (object) [
             'invoice_count' => $invoiceCount,
+            'return_count' => (int) $purchaseReturns->sum('return_count'),
             'purchase_amount' => round($purchaseAmount, 2),
+            'return_amount' => round($returnAmount, 2),
+            'net_purchase_amount' => round($purchaseAmount - $returnAmount, 2),
             'invoice_paid' => round($invoicePaid, 2),
             'later_payments' => round($laterPaymentTotal, 2),
             'paid_amount' => round($invoicePaid + $laterPaymentTotal, 2),
@@ -582,12 +712,14 @@ class ReportsController extends Controller
             ->keyBy('supplier_id');
 
         $paymentRows = $this->supplierPaymentsBySupplier($startDate, $endDate);
-        $supplierIds = $purchaseRows->keys()->merge($paymentRows->keys())->unique();
+        $returnRows = $this->purchaseReturnsBySupplier($startDate, $endDate);
+        $supplierIds = $purchaseRows->keys()->merge($paymentRows->keys())->merge($returnRows->keys())->unique();
         $supplierDetails = DB::table('suppliers')->whereIn('id', $supplierIds)
             ->get(['id', 'name', 'contact_info'])->keyBy('id');
-        $suppliers = $supplierIds->map(function ($supplierId) use ($purchaseRows, $paymentRows, $supplierDetails) {
+        $suppliers = $supplierIds->map(function ($supplierId) use ($purchaseRows, $paymentRows, $returnRows, $supplierDetails) {
             $purchase = $purchaseRows->get($supplierId);
             $payment = $paymentRows->get($supplierId);
+            $return = $returnRows->get($supplierId);
             $supplier = $supplierDetails->get($supplierId);
 
             return (object) [
@@ -596,6 +728,9 @@ class ReportsController extends Controller
                 'supplier_phone' => $supplier->contact_info ?? '',
                 'invoice_count' => (int) ($purchase->invoice_count ?? 0),
                 'purchase_amount' => (float) ($purchase->purchase_amount ?? 0),
+                'return_count' => (int) ($return->return_count ?? 0),
+                'return_amount' => (float) ($return->return_amount ?? 0),
+                'net_purchase_amount' => (float) ($purchase->purchase_amount ?? 0) - (float) ($return->return_amount ?? 0),
                 'invoice_paid' => (float) ($purchase->invoice_paid ?? 0),
                 'later_payments' => (float) ($payment->payment_amount ?? 0),
                 'paid_amount' => (float) ($purchase->invoice_paid ?? 0) + (float) ($payment->payment_amount ?? 0),
@@ -606,6 +741,8 @@ class ReportsController extends Controller
             'supplier_count' => $suppliers->count(),
             'invoice_count' => $suppliers->sum('invoice_count'),
             'purchase_amount' => round($suppliers->sum('purchase_amount'), 2),
+            'return_amount' => round($suppliers->sum('return_amount'), 2),
+            'net_purchase_amount' => round($suppliers->sum('net_purchase_amount'), 2),
             'paid_amount' => round($suppliers->sum('paid_amount'), 2),
         ];
 
@@ -618,7 +755,7 @@ class ReportsController extends Controller
     public function purchasesPerProduct(Request $request)
     {
         [$startDate, $endDate] = $this->validatedPurchasePeriod($request);
-        $products = DB::table('purchase_invoices_details as details')
+        $grossProducts = DB::table('purchase_invoices_details as details')
             ->join('purchase_invoices as invoices', 'invoices.id', '=', 'details.purchase_invoices_id')
             ->leftJoin('products', 'products.id', '=', 'details.product_id')
             ->whereDate('invoices.date', '>=', $startDate)
@@ -630,10 +767,47 @@ class ReportsController extends Controller
             ->orderByDesc('purchase_amount')
             ->get();
 
+        $returnedProducts = DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->leftJoin('products', 'products.id', '=', 'details.product_id')
+            ->whereDate('returns.created_at', '>=', $startDate)->whereDate('returns.created_at', '<=', $endDate)
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')
+            ->groupBy('details.product_id', 'products.name')
+            ->selectRaw("details.product_id, COALESCE(products.name, 'منتج محذوف') as product_name, SUM(details.quantity) as quantity_returned, SUM(details.total_amount) as return_amount")
+            ->get()->keyBy('product_id');
+        $productIds = $grossProducts->pluck('product_id')->merge($returnedProducts->keys())->unique();
+        $products = $productIds->map(function ($productId) use ($grossProducts, $returnedProducts) {
+            $purchase = $grossProducts->firstWhere('product_id', $productId);
+            $return = $returnedProducts->get($productId);
+            $quantityPurchased = (float) ($purchase->quantity_purchased ?? 0);
+            $quantityReturned = (float) ($return->quantity_returned ?? 0);
+            $purchaseAmount = (float) ($purchase->purchase_amount ?? 0);
+            $returnAmount = (float) ($return->return_amount ?? 0);
+            $netQuantity = $quantityPurchased - $quantityReturned;
+            $netAmount = $purchaseAmount - $returnAmount;
+
+            return (object) [
+                'product_id' => $productId,
+                'product_name' => $purchase->product_name ?? $return->product_name,
+                'invoice_count' => (int) ($purchase->invoice_count ?? 0),
+                'quantity_purchased' => $quantityPurchased,
+                'quantity_returned' => $quantityReturned,
+                'net_quantity' => $netQuantity,
+                'purchase_amount' => $purchaseAmount,
+                'return_amount' => $returnAmount,
+                'net_purchase_amount' => $netAmount,
+                'average_unit_cost' => $netQuantity > 0 ? $netAmount / $netQuantity : 0,
+            ];
+        })->sortByDesc('net_purchase_amount')->values();
+
         $stats = (object) [
             'product_count' => $products->count(),
             'quantity_purchased' => $products->sum('quantity_purchased'),
+            'quantity_returned' => $products->sum('quantity_returned'),
+            'net_quantity' => $products->sum('net_quantity'),
             'purchase_amount' => round($products->sum('purchase_amount'), 2),
+            'return_amount' => round($products->sum('return_amount'), 2),
+            'net_purchase_amount' => round($products->sum('net_purchase_amount'), 2),
             'invoice_count' => (int) DB::table('purchase_invoices')
                 ->whereDate('date', '>=', $startDate)->whereDate('date', '<=', $endDate)->whereNull('deleted_at')->count(),
         ];
@@ -654,16 +828,19 @@ class ReportsController extends Controller
             ->selectRaw('supplier_id, COUNT(id) as invoice_count, SUM(total_amount) as purchase_amount, SUM(paid_amount) as invoice_paid')
             ->groupBy('supplier_id')->get()->keyBy('supplier_id');
         $periodPayments = $this->supplierPaymentsBySupplier($startDate, $endDate);
+        $returnRows = $this->purchaseReturnsBySupplier($startDate, $endDate);
         $balanceSnapshots = $this->supplierBalanceSnapshots($startDate, $endDate);
         $supplierIds = $purchaseRows->keys()
             ->merge($periodPayments->keys())
+            ->merge($returnRows->keys())
             ->merge($balanceSnapshots->keys())
             ->unique();
         $supplierDetails = DB::table('suppliers')->whereIn('id', $supplierIds)
             ->get(['id', 'name', 'contact_info'])->keyBy('id');
-        $suppliers = $supplierIds->map(function ($supplierId) use ($purchaseRows, $periodPayments, $balanceSnapshots, $supplierDetails) {
+        $suppliers = $supplierIds->map(function ($supplierId) use ($purchaseRows, $periodPayments, $returnRows, $balanceSnapshots, $supplierDetails) {
             $purchase = $purchaseRows->get($supplierId);
             $payment = $periodPayments->get($supplierId);
+            $return = $returnRows->get($supplierId);
             $supplier = $supplierDetails->get($supplierId);
 
             return (object) [
@@ -673,6 +850,7 @@ class ReportsController extends Controller
                 'invoice_count' => (int) ($purchase->invoice_count ?? 0),
                 'opening_payable' => (float) ($balanceSnapshots->get($supplierId)->opening_payable ?? 0),
                 'purchase_amount' => (float) ($purchase->purchase_amount ?? 0),
+                'return_amount' => (float) ($return->return_amount ?? 0),
                 'paid_amount' => (float) ($purchase->invoice_paid ?? 0) + (float) ($payment->payment_amount ?? 0),
                 'closing_payable' => (float) ($balanceSnapshots->get($supplierId)->closing_payable ?? 0),
             ];
@@ -682,6 +860,7 @@ class ReportsController extends Controller
             'supplier_count' => $suppliers->count(),
             'opening_payable' => round($suppliers->sum('opening_payable'), 2),
             'purchase_amount' => round($suppliers->sum('purchase_amount'), 2),
+            'return_amount' => round($suppliers->sum('return_amount'), 2),
             'paid_amount' => round($suppliers->sum('paid_amount'), 2),
             'closing_payable' => round($suppliers->sum('closing_payable'), 2),
         ];
@@ -701,12 +880,14 @@ class ReportsController extends Controller
             ->selectRaw('supplier_id, COUNT(id) as invoice_count, SUM(total_amount) as purchase_amount, SUM(paid_amount) as invoice_paid')
             ->groupBy('supplier_id')->get()->keyBy('supplier_id');
         $laterPayments = $this->supplierPaymentsBySupplier($startDate, $endDate);
-        $supplierIds = $purchases->keys()->merge($laterPayments->keys())->unique();
+        $returnRows = $this->purchaseReturnsBySupplier($startDate, $endDate);
+        $supplierIds = $purchases->keys()->merge($laterPayments->keys())->merge($returnRows->keys())->unique();
         $supplierDetails = DB::table('suppliers')->whereIn('id', $supplierIds)
             ->get(['id', 'name', 'contact_info'])->keyBy('id');
-        $suppliers = $supplierIds->map(function ($supplierId) use ($purchases, $laterPayments, $supplierDetails) {
+        $suppliers = $supplierIds->map(function ($supplierId) use ($purchases, $laterPayments, $returnRows, $supplierDetails) {
             $purchase = $purchases->get($supplierId);
             $payment = $laterPayments->get($supplierId);
+            $return = $returnRows->get($supplierId);
             $supplier = $supplierDetails->get($supplierId);
 
             return (object) [
@@ -715,6 +896,7 @@ class ReportsController extends Controller
                 'supplier_phone' => $supplier->contact_info ?? '',
                 'invoice_count' => (int) ($purchase->invoice_count ?? 0),
                 'purchase_amount' => (float) ($purchase->purchase_amount ?? 0),
+                'return_amount' => (float) ($return->return_amount ?? 0),
                 'invoice_paid' => (float) ($purchase->invoice_paid ?? 0),
                 'later_paid' => (float) ($payment->payment_amount ?? 0),
                 'paid_amount' => (float) ($purchase->invoice_paid ?? 0) + (float) ($payment->payment_amount ?? 0),
@@ -724,6 +906,7 @@ class ReportsController extends Controller
             'supplier_count' => $suppliers->count(),
             'invoice_count' => $suppliers->sum('invoice_count'),
             'purchase_amount' => round($suppliers->sum('purchase_amount'), 2),
+            'return_amount' => round($suppliers->sum('return_amount'), 2),
             'invoice_paid' => round($suppliers->sum('invoice_paid'), 2),
             'later_paid' => round($suppliers->sum('later_paid'), 2),
             'paid_amount' => round($suppliers->sum('paid_amount'), 2),
@@ -744,13 +927,15 @@ class ReportsController extends Controller
             ->selectRaw('supplier_id, COUNT(id) as invoice_count, SUM(total_amount) as purchase_amount, SUM(paid_amount) as invoice_paid')
             ->groupBy('supplier_id')->get()->keyBy('supplier_id');
         $payments = $this->supplierPaymentsBySupplier($startDate, $endDate);
+        $returnRows = $this->purchaseReturnsBySupplier($startDate, $endDate);
         $balances = $this->supplierBalanceSnapshots($startDate, $endDate);
-        $supplierIds = $purchases->keys()->merge($payments->keys())->merge($balances->keys())->unique();
+        $supplierIds = $purchases->keys()->merge($payments->keys())->merge($returnRows->keys())->merge($balances->keys())->unique();
         $supplierDetails = DB::table('suppliers')->whereIn('id', $supplierIds)
             ->get(['id', 'name', 'contact_info'])->keyBy('id');
-        $suppliers = $supplierIds->map(function ($supplierId) use ($purchases, $payments, $balances, $supplierDetails) {
+        $suppliers = $supplierIds->map(function ($supplierId) use ($purchases, $payments, $returnRows, $balances, $supplierDetails) {
             $purchase = $purchases->get($supplierId);
             $payment = $payments->get($supplierId);
+            $return = $returnRows->get($supplierId);
             $balance = $balances->get($supplierId);
             $supplier = $supplierDetails->get($supplierId);
 
@@ -761,6 +946,7 @@ class ReportsController extends Controller
                 'invoice_count' => (int) ($purchase->invoice_count ?? 0),
                 'opening_payable' => (float) ($balance->opening_payable ?? 0),
                 'purchase_amount' => (float) ($purchase->purchase_amount ?? 0),
+                'return_amount' => (float) ($return->return_amount ?? 0),
                 'paid_amount' => (float) ($payment->payment_amount ?? 0)
                     + (float) ($purchases->get($supplierId)->invoice_paid ?? 0),
                 'closing_payable' => (float) ($balance->closing_payable ?? 0),
@@ -770,6 +956,7 @@ class ReportsController extends Controller
             'supplier_count' => $suppliers->count(),
             'opening_payable' => round($suppliers->sum('opening_payable'), 2),
             'purchase_amount' => round($suppliers->sum('purchase_amount'), 2),
+            'return_amount' => round($suppliers->sum('return_amount'), 2),
             'paid_amount' => round($suppliers->sum('paid_amount'), 2),
             'closing_payable' => round($suppliers->sum('closing_payable'), 2),
         ];
@@ -844,6 +1031,9 @@ class ReportsController extends Controller
             ->whereNull('invoices.deleted_at')->whereNull('details.deleted_at')
             ->selectRaw('details.product_id, SUM(details.quantity) as purchased_quantity, SUM(details.quantity * details.price_per_pices) as purchase_cost')
             ->groupBy('details.product_id')->get()->keyBy('product_id');
+        $purchaseReturnCosts = $this->purchaseReturnCostsByProduct($startDate, $endDate);
+        $purchaseReturnAmount = $purchaseReturnCosts->sum('returned_cost');
+        $purchaseReturnQuantity = $purchaseReturnCosts->sum('returned_quantity');
         $expensesAmount = (float) DB::table('expenses_details')
             ->whereDate('expenses_date', '>=', $startDate)
             ->whereDate('expenses_date', '<=', $endDate)
@@ -853,14 +1043,15 @@ class ReportsController extends Controller
         $productIds = $sales->keys()->merge($returns->keys())->unique();
         $productDetails = DB::table('products')->whereIn('id', $productIds)
             ->get(['id', 'name', 'cost_price'])->keyBy('id');
-        $products = $productIds->map(function ($productId) use ($sales, $returns, $purchaseCosts, $productDetails) {
+        $products = $productIds->map(function ($productId) use ($sales, $returns, $purchaseCosts, $purchaseReturnCosts, $productDetails) {
             $sale = $sales->get($productId);
             $return = $returns->get($productId);
             $purchase = $purchaseCosts->get($productId);
             $product = $productDetails->get($productId);
-            $purchasedQuantity = (float) ($purchase->purchased_quantity ?? 0);
+            $purchaseReturn = $purchaseReturnCosts->get($productId);
+            $purchasedQuantity = max(0, (float) ($purchase->purchased_quantity ?? 0) - (float) ($purchaseReturn->returned_quantity ?? 0));
             $weightedCost = $purchasedQuantity > 0
-                ? (float) $purchase->purchase_cost / $purchasedQuantity
+                ? max(0, (float) $purchase->purchase_cost - (float) ($purchaseReturn->returned_cost ?? 0)) / $purchasedQuantity
                 : (float) ($product->cost_price ?? 0);
             $hasCost = $weightedCost > 0;
             $netQuantity = (float) ($sale->sold_quantity ?? 0) - (float) ($return->returned_quantity ?? 0);
@@ -893,6 +1084,8 @@ class ReportsController extends Controller
             'expenses_amount' => round($expensesAmount, 2),
             'net_profit' => round($profit - $expensesAmount, 2),
             'gross_margin' => abs($costedSales) > 0.0001 ? round($profit / $costedSales * 100, 2) : 0,
+            'purchase_return_amount' => round($purchaseReturnAmount, 2),
+            'purchase_return_quantity' => round($purchaseReturnQuantity, 3),
             'product_count' => $products->count(),
             'uncosted_product_count' => $products->where('has_cost', false)->count(),
         ];
@@ -909,6 +1102,35 @@ class ReportsController extends Controller
             ->whereNull('payments.deleted_at')->whereNull('invoices.deleted_at')
             ->selectRaw('payments.payment_date as payment_date, SUM(payments.amount_paid) as payment_amount')
             ->groupBy('payments.payment_date')->get()->keyBy('payment_date');
+    }
+
+    private function purchaseReturnsByDate(string $startDate, string $endDate): \Illuminate\Support\Collection
+    {
+        return DB::table('purchase_return_invoices')
+            ->whereDate('created_at', '>=', $startDate)->whereDate('created_at', '<=', $endDate)
+            ->whereNull('deleted_at')
+            ->selectRaw('DATE(created_at) as return_date, COUNT(id) as return_count, SUM(total_amount) as return_amount')
+            ->groupBy(DB::raw('DATE(created_at)'))->get()->keyBy('return_date');
+    }
+
+    private function purchaseReturnsBySupplier(string $startDate, string $endDate): \Illuminate\Support\Collection
+    {
+        return DB::table('purchase_return_invoices')
+            ->whereDate('created_at', '>=', $startDate)->whereDate('created_at', '<=', $endDate)
+            ->whereNull('deleted_at')
+            ->select('supplier_id')->selectRaw('COUNT(id) as return_count, SUM(total_amount) as return_amount')
+            ->groupBy('supplier_id')->get()->keyBy('supplier_id');
+    }
+
+    private function purchaseReturnCostsByProduct(string $startDate, string $endDate): \Illuminate\Support\Collection
+    {
+        return DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->whereDate('returns.created_at', '>=', $startDate)->whereDate('returns.created_at', '<=', $endDate)
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')
+            ->select('details.product_id')
+            ->selectRaw('SUM(details.quantity) as returned_quantity, SUM(details.total_amount) as returned_cost')
+            ->groupBy('details.product_id')->get()->keyBy('product_id');
     }
 
     private function customerBalanceSnapshots(string $startDate, string $endDate): \Illuminate\Support\Collection
@@ -994,7 +1216,7 @@ class ReportsController extends Controller
             ->selectRaw('SUM(CASE WHEN payment_date <= ? THEN amount_paid ELSE 0 END) as paid_by_period_end', [$endDate])
             ->groupBy('purchases_invoice_id');
 
-        return DB::table('purchase_invoices as invoices')
+        $balances = DB::table('purchase_invoices as invoices')
             ->leftJoinSub($paymentTotals, 'payments', function ($join) {
                 $join->on('payments.purchases_invoice_id', '=', 'invoices.id');
             })
@@ -1004,6 +1226,23 @@ class ReportsController extends Controller
             ->selectRaw('SUM(CASE WHEN invoices.date < ? THEN GREATEST(invoices.total_amount - COALESCE(invoices.paid_amount, 0) - COALESCE(payments.paid_before_period, 0), 0) ELSE 0 END) as opening_payable', [$startDate])
             ->selectRaw('SUM(GREATEST(invoices.total_amount - COALESCE(invoices.paid_amount, 0) - COALESCE(payments.paid_by_period_end, 0), 0)) as closing_payable')
             ->groupBy('invoices.supplier_id')->get()->keyBy('supplier_id');
+
+        $returns = DB::table('purchase_return_invoices')->whereNull('deleted_at')
+            ->select('supplier_id')
+            ->selectRaw('SUM(CASE WHEN DATE(created_at) < ? THEN total_amount ELSE 0 END) as returns_before_period', [$startDate])
+            ->selectRaw('SUM(CASE WHEN DATE(created_at) <= ? THEN total_amount ELSE 0 END) as returns_by_period_end', [$endDate])
+            ->groupBy('supplier_id')->get()->keyBy('supplier_id');
+        $supplierIds = $balances->keys()->merge($returns->keys())->unique();
+
+        return $supplierIds->mapWithKeys(function ($supplierId) use ($balances, $returns) {
+            $balance = $balances->get($supplierId);
+            $return = $returns->get($supplierId);
+
+            return [$supplierId => (object) [
+                'opening_payable' => max(0, (float) ($balance->opening_payable ?? 0) - (float) ($return->returns_before_period ?? 0)),
+                'closing_payable' => max(0, (float) ($balance->closing_payable ?? 0) - (float) ($return->returns_by_period_end ?? 0)),
+            ]];
+        });
     }
 
     private function validatedPurchasePeriod(Request $request): array
@@ -1028,6 +1267,8 @@ class ReportsController extends Controller
         $futureSales = $this->salesQuantities(null, $endDate);
         $periodReturns = $this->returnQuantities($startDate, $endDate);
         $futureReturns = $this->returnQuantities(null, $endDate);
+        $periodPurchaseReturns = $this->purchaseReturnQuantities($startDate, $endDate);
+        $futurePurchaseReturns = $this->purchaseReturnQuantities(null, $endDate);
 
         $products = DB::table('products')
             ->leftJoin('category', 'category.category_id', '=', 'products.category')
@@ -1040,17 +1281,21 @@ class ReportsController extends Controller
                 $periodSales,
                 $futureSales,
                 $periodReturns,
-                $futureReturns
+                $futureReturns,
+                $periodPurchaseReturns,
+                $futurePurchaseReturns
             ) {
                 $id = $product->id;
                 $purchased = (float) ($periodPurchases[$id] ?? 0);
                 $sold = (float) ($periodSales[$id] ?? 0);
                 $returned = (float) ($periodReturns[$id] ?? 0);
+                $purchaseReturned = (float) ($periodPurchaseReturns[$id] ?? 0);
                 $futureNet = (float) ($futurePurchases[$id] ?? 0)
+                    - (float) ($futurePurchaseReturns[$id] ?? 0)
                     + (float) ($futureReturns[$id] ?? 0)
                     - (float) ($futureSales[$id] ?? 0);
                 $closing = (float) ($product->quantity ?? 0) - $futureNet;
-                $opening = $closing - $purchased - $returned + $sold;
+                $opening = $closing - $purchased + $purchaseReturned - $returned + $sold;
 
                 return (object) [
                     'product_id' => $id,
@@ -1060,7 +1305,8 @@ class ReportsController extends Controller
                     'opening_quantity' => $opening,
                     'purchased_quantity' => $purchased,
                     'returned_quantity' => $returned,
-                    'received_quantity' => $purchased + $returned,
+                    'purchase_returned_quantity' => $purchaseReturned,
+                    'received_quantity' => $purchased - $purchaseReturned + $returned,
                     'sold_quantity' => $sold,
                     'closing_quantity' => $closing,
                     'reorder_quantity' => max(0, self::LOW_STOCK_THRESHOLD - $closing),
@@ -1072,6 +1318,7 @@ class ReportsController extends Controller
             'opening_quantity' => $products->sum('opening_quantity'),
             'purchased_quantity' => $products->sum('purchased_quantity'),
             'returned_quantity' => $products->sum('returned_quantity'),
+            'purchase_returned_quantity' => $products->sum('purchase_returned_quantity'),
             'received_quantity' => $products->sum('received_quantity'),
             'sold_quantity' => $products->sum('sold_quantity'),
             'closing_quantity' => $products->sum('closing_quantity'),
@@ -1128,6 +1375,20 @@ class ReportsController extends Controller
         return $query->selectRaw('details.product_id, SUM(details.quantity) as quantity')
             ->groupBy('details.product_id')
             ->pluck('quantity', 'product_id');
+    }
+
+    private function purchaseReturnQuantities(?string $startDate, string $endDate): \Illuminate\Support\Collection
+    {
+        $query = DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at');
+
+        $query = $startDate === null
+            ? $query->whereDate('returns.created_at', '>', $endDate)
+            : $query->whereDate('returns.created_at', '>=', $startDate)->whereDate('returns.created_at', '<=', $endDate);
+
+        return $query->selectRaw('details.product_id, SUM(details.quantity) as quantity')
+            ->groupBy('details.product_id')->pluck('quantity', 'product_id');
     }
 
     private function validatedInventoryPeriod(Request $request): array

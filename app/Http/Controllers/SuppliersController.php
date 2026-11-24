@@ -243,6 +243,48 @@ class SuppliersController extends Controller
      * Display the specified resource.
      */
 
+    private function purchaseReturnsForInvoices($invoiceIds): array
+    {
+        $invoiceIds = collect($invoiceIds)->filter()->unique()->values();
+        if ($invoiceIds->isEmpty()) {
+            return [collect(), collect()];
+        }
+
+        $summaries = DB::table('purchase_return_invoices')
+            ->whereIn('original_invoice_id', $invoiceIds)->whereNull('deleted_at')
+            ->select('original_invoice_id')
+            ->selectRaw('COUNT(id) as return_count, SUM(total_amount) as return_amount')
+            ->groupBy('original_invoice_id')->get()->keyBy('original_invoice_id');
+        $quantities = DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->whereIn('returns.original_invoice_id', $invoiceIds)
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')
+            ->select('returns.original_invoice_id')->selectRaw('SUM(details.quantity) as return_quantity')
+            ->groupBy('returns.original_invoice_id')->get()->keyBy('original_invoice_id');
+        $details = DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->leftJoin('products', 'products.id', '=', 'details.product_id')
+            ->whereIn('returns.original_invoice_id', $invoiceIds)
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')
+            ->orderBy('returns.created_at')->orderBy('details.id')
+            ->get([
+                'returns.original_invoice_id', 'returns.id as return_invoice_id', 'returns.created_at as return_date',
+                'products.name as product_name', 'details.quantity', 'details.unit_price', 'details.total_amount',
+            ])->groupBy('original_invoice_id');
+
+        $summaries = $invoiceIds->mapWithKeys(function ($invoiceId) use ($summaries, $quantities) {
+            $summary = $summaries->get($invoiceId);
+            $quantity = $quantities->get($invoiceId);
+            return [$invoiceId => (object) [
+                'return_count' => (int) ($summary->return_count ?? 0),
+                'return_amount' => (float) ($summary->return_amount ?? 0),
+                'return_quantity' => (float) ($quantity->return_quantity ?? 0),
+            ]];
+        });
+
+        return [$summaries, $details];
+    }
+
     public function show($supplier_id)
     {
         // Decrypt the supplier ID
@@ -339,6 +381,21 @@ class SuppliersController extends Controller
 
         // for second tab for all credit invoices only
         $creditInvoiceNumbers = $this->creditInvoicesForSupplier($supplierId);
+        [$purchaseReturnSummaries, $purchaseReturnDetailsByInvoice] = $this->purchaseReturnsForInvoices(
+            $supplierPurchaseInvoice->pluck('id')->merge($creditInvoiceNumbers->pluck('purchase_invoices_id'))->unique()
+        );
+        foreach ($supplierPurchaseInvoice as $invoice) {
+            $summary = $purchaseReturnSummaries->get($invoice->id);
+            $invoice->purchase_return_count = (int) ($summary->return_count ?? 0);
+            $invoice->purchase_return_amount = (float) ($summary->return_amount ?? 0);
+            $invoice->purchase_return_quantity = (float) ($summary->return_quantity ?? 0);
+        }
+        foreach ($creditInvoiceNumbers as $invoice) {
+            $summary = $purchaseReturnSummaries->get($invoice->purchase_invoices_id);
+            $invoice->purchase_return_count = (int) ($summary->return_count ?? 0);
+            $invoice->purchase_return_amount = (float) ($summary->return_amount ?? 0);
+            $invoice->purchase_return_quantity = (float) ($summary->return_quantity ?? 0);
+        }
 
 
         // for details table of credit invoices in second tab for all credit invoices
@@ -396,7 +453,9 @@ class SuppliersController extends Controller
             'suppliersInfo',
             'transaction',
             'supplierPurchaseInvoice',
-            'creditDetails'
+            'creditDetails',
+            'purchaseReturnDetailsByInvoice',
+            'purchaseReturnSummaries'
         ));
 
     }
@@ -503,6 +562,21 @@ class SuppliersController extends Controller
 
         // for second tab for all credit invoices only
         $creditInvoiceNumbers = $this->creditInvoicesForSupplier($supplierId);
+        [$purchaseReturnSummaries, $purchaseReturnDetailsByInvoice] = $this->purchaseReturnsForInvoices(
+            $supplierPurchaseInvoice->pluck('id')->merge($creditInvoiceNumbers->pluck('purchase_invoices_id'))->unique()
+        );
+        foreach ($supplierPurchaseInvoice as $invoice) {
+            $summary = $purchaseReturnSummaries->get($invoice->id);
+            $invoice->purchase_return_count = (int) ($summary->return_count ?? 0);
+            $invoice->purchase_return_amount = (float) ($summary->return_amount ?? 0);
+            $invoice->purchase_return_quantity = (float) ($summary->return_quantity ?? 0);
+        }
+        foreach ($creditInvoiceNumbers as $invoice) {
+            $summary = $purchaseReturnSummaries->get($invoice->purchase_invoices_id);
+            $invoice->purchase_return_count = (int) ($summary->return_count ?? 0);
+            $invoice->purchase_return_amount = (float) ($summary->return_amount ?? 0);
+            $invoice->purchase_return_quantity = (float) ($summary->return_quantity ?? 0);
+        }
 
         // for details table of credit invoices in second tab for all credit invoices
         $creditDetails = DB::table('suppliers')
@@ -555,7 +629,9 @@ class SuppliersController extends Controller
             'suppliersInfo',
             'transaction',
             'supplierPurchaseInvoice',
-            'creditDetails'
+            'creditDetails',
+            'purchaseReturnDetailsByInvoice',
+            'purchaseReturnSummaries'
         ));
 
     }

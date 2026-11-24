@@ -81,6 +81,24 @@ class PurchaseInvoiceService
                 ->lockForUpdate()
                 ->get(['product_id', 'quantity']);
 
+            $returnedByProduct = DB::table('purchase_return_invoice_details')
+                ->where('original_invoice_id', $invoiceId)
+                ->whereNull('deleted_at')
+                ->select('product_id')
+                ->selectRaw('SUM(quantity) as returned_quantity')
+                ->groupBy('product_id')
+                ->pluck('returned_quantity', 'product_id');
+            $newQuantities = [];
+            foreach ($lines as $line) {
+                $productId = (string) $line['product_id'];
+                $newQuantities[$productId] = ($newQuantities[$productId] ?? 0) + (float) $line['quantity'];
+            }
+            foreach ($returnedByProduct as $productId => $returnedQuantity) {
+                if (($newQuantities[(string) $productId] ?? 0) + 0.000001 < (float) $returnedQuantity) {
+                    throw ValidationException::withMessages(['purchase_invoices_no' => 'لا يمكن تقليل كميات الفاتورة عن الكميات المرتجعة للمورد.']);
+                }
+            }
+
             $warehouseId = DB::table('warehouses')->whereNull('deleted_at')->orderBy('id')->value('id');
             foreach ($lines as $line) {
                 $this->ensureProduct($line, $warehouseId);
@@ -132,6 +150,10 @@ class PurchaseInvoiceService
                 ->first();
             if (! $invoice) {
                 throw ValidationException::withMessages(['invoice' => 'فاتورة المشتريات غير موجودة.']);
+            }
+
+            if (DB::table('purchase_return_invoices')->where('original_invoice_id', $invoiceId)->whereNull('deleted_at')->exists()) {
+                throw ValidationException::withMessages(['invoice' => 'لا يمكن حذف فاتورة لها مرتجعات مشتريات مسجلة.']);
             }
 
             $details = DB::table('purchase_invoices_details')

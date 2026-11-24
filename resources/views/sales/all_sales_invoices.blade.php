@@ -156,33 +156,6 @@
         <a class="btn btn-sm btn-outline-info" href="{{ route('invoice.show', $invoice->sales_invoice_id) }}" target="_blank" rel="noopener">طباعة</a>
         @can('sales.delete')<button type="button" class="btn btn-sm btn-outline-danger" data-toggle="modal" data-target="#deleteSalesInvoce{{ $invoice->sales_invoice_id }}">حذف</button>@endcan
     </div>
-    @include('sales.partials.invoice_details_modal')
-    @can('sales.update')
-    @if($invoice->return_count <= 0)
-        @include('sales.partials.invoice_edit_modal')
-    @endif
-    @endcan
-    @can('sales.delete')
-    <div class="modal fade invoice-modal invoice-delete-modal" id="deleteSalesInvoce{{ $invoice->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header invoice-modal-header">
-                    <h5 class="modal-title">حذف فاتورة #{{ $invoice->sales_invoice_id }}</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
-                </div>
-                <div class="modal-body">سيتم إعادة الكميات المتبقية بعد المرتجعات للمخزون واستبعاد الفاتورة ودفعاتها من الحسابات النشطة.</div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-dismiss="modal">إلغاء</button>
-                    <form action="{{ route('invoice.destroy', $invoice->sales_invoice_id) }}" method="POST">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endcan
 </td>
 												<td>{{ $invoice->invoice_update }}</td>
 											</tr>
@@ -198,6 +171,35 @@
 							</div><!-- bd -->
 						</div><!-- bd -->
 					</div>
+					@foreach($salesInvoices as $invoice)
+						@include('sales.partials.invoice_details_modal')
+						@can('sales.update')
+							@if($invoice->return_count <= 0)
+								@include('sales.partials.invoice_edit_modal')
+							@endif
+						@endcan
+						@can('sales.delete')
+						<div class="modal fade invoice-modal invoice-delete-modal" id="deleteSalesInvoce{{ $invoice->sales_invoice_id }}" tabindex="-1" role="dialog" aria-hidden="true">
+							<div class="modal-dialog" role="document">
+								<div class="modal-content">
+									<div class="modal-header invoice-modal-header">
+										<h5 class="modal-title">حذف فاتورة #{{ $invoice->sales_invoice_id }}</h5>
+										<button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+									</div>
+									<div class="modal-body">سيتم إعادة الكميات المتبقية بعد المرتجعات للمخزون واستبعاد الفاتورة ودفعاتها من الحسابات النشطة.</div>
+									<div class="modal-footer">
+										<button type="button" class="btn btn-light" data-dismiss="modal">إلغاء</button>
+										<form action="{{ route('invoice.destroy', $invoice->sales_invoice_id) }}" method="POST">
+											@csrf
+											@method('DELETE')
+											<button type="submit" class="btn btn-danger">تأكيد الحذف</button>
+										</form>
+									</div>
+								</div>
+							</div>
+						</div>
+						@endcan
+					@endforeach
 					<!--/div-->
 
 

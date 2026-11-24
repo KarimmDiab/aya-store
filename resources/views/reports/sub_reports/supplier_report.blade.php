@@ -84,25 +84,26 @@
         <a class="sr-tab {{ $paidReport ? 'active' : '' }}" href="{{ $reportRoutes['paid'] }}"><i class="fas fa-wallet"></i> المدفوعات</a>
         <a class="sr-tab {{ ! $paidReport ? 'active' : '' }}" href="{{ $reportRoutes['balances'] }}"><i class="fas fa-file-invoice-dollar"></i> الأرصدة</a>
     </nav>
-    <div class="sr-note"><i class="fas fa-info-circle ml-1"></i> تُحسب الدفعة الأولى بتاريخ فاتورة الشراء، والسداد اللاحق بتاريخ تسجيله. الرصيد يخص الفواتير النشطة فقط.</div>
+    <div class="sr-note"><i class="fas fa-info-circle ml-1"></i> تُحسب الدفعة الأولى بتاريخ فاتورة الشراء، والسداد اللاحق بتاريخ تسجيله. تُخصم مرتجعات المورد من الرصيد بتاريخ تسجيل المرتجع.</div>
 
     @if ($paidReport)
         <section class="sr-kpis">
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-truck"></i> الموردون</span><strong class="sr-value">{{ number_format($stats->supplier_count) }}</strong><small>لهم مدفوعات أو فواتير خلال الفترة</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-file-invoice"></i> فواتير الشراء</span><strong class="sr-value">{{ number_format($stats->invoice_count) }}</strong><small>فاتورة</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-cart-plus"></i> إجمالي المشتريات</span><strong class="sr-value">{{ number_format($stats->purchase_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="sr-kpi"><span class="sr-label"><i class="fas fa-undo"></i> مرتجعات المورد</span><strong class="sr-value sr-due">{{ number_format($stats->return_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-money-bill-wave"></i> دفعات أولى</span><strong class="sr-value sr-paid">{{ number_format($stats->invoice_paid, 2) }}</strong><small>ج.م</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-hand-holding-usd"></i> إجمالي المدفوع</span><strong class="sr-value sr-paid">{{ number_format($stats->paid_amount, 2) }}</strong><small>ج.م خلال الفترة</small></div>
         </section>
         <section class="sr-card">
             <div class="sr-card-head"><div><h2>المدفوعات حسب المورد</h2><p>تفصيل الدفعة الأولى والسداد اللاحق يمنع احتساب الدفعات مرتين.</p></div><input type="search" class="form-control sr-search" data-supplier-search placeholder="ابحث باسم المورد أو الهاتف"></div>
             <div class="sr-table-wrap"><table class="sr-table table" id="supplierTable">
-                <thead><tr><th>المورد</th><th>الهاتف</th><th>عدد الفواتير</th><th>إجمالي المشتريات</th><th>الدفعات الأولى</th><th>السداد اللاحق</th><th>إجمالي المدفوع</th></tr></thead>
+                <thead><tr><th>المورد</th><th>الهاتف</th><th>عدد الفواتير</th><th>إجمالي المشتريات</th><th>مرتجعات المورد</th><th>الدفعات الأولى</th><th>السداد اللاحق</th><th>إجمالي المدفوع</th></tr></thead>
                 <tbody>
                 @forelse ($suppliers as $supplier)
-                    <tr><td><div class="sr-name"><strong>{{ $supplier->supplier_name }}</strong><small>كود المورد: {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->supplier_phone }}</td><td>{{ $supplier->invoice_count }}</td><td class="sr-num">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="sr-num">{{ number_format($supplier->invoice_paid, 2) }} ج.م</td><td class="sr-num">{{ number_format($supplier->later_paid, 2) }} ج.م</td><td class="sr-num sr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td></tr>
+                    <tr><td><div class="sr-name"><strong>{{ $supplier->supplier_name }}</strong><small>كود المورد: {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->supplier_phone }}</td><td>{{ $supplier->invoice_count }}</td><td class="sr-num">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="sr-num sr-due">{{ number_format($supplier->return_amount, 2) }} ج.م</td><td class="sr-num">{{ number_format($supplier->invoice_paid, 2) }} ج.م</td><td class="sr-num">{{ number_format($supplier->later_paid, 2) }} ج.م</td><td class="sr-num sr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td></tr>
                 @empty
-                    <tr><td colspan="7" class="sr-empty">لا توجد مدفوعات للموردين خلال الفترة المحددة.</td></tr>
+                    <tr><td colspan="8" class="sr-empty">لا توجد مدفوعات أو مرتجعات للموردين خلال الفترة المحددة.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -113,18 +114,19 @@
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-truck"></i> الموردون</span><strong class="sr-value">{{ number_format($stats->supplier_count) }}</strong><small>لهم رصيد أو حركة</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-hourglass-start"></i> رصيد أول الفترة</span><strong class="sr-value">{{ number_format($stats->opening_payable, 2) }}</strong><small>ج.م</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-cart-plus"></i> مشتريات الفترة</span><strong class="sr-value">{{ number_format($stats->purchase_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="sr-kpi"><span class="sr-label"><i class="fas fa-undo"></i> مرتجعات المورد</span><strong class="sr-value sr-due">{{ number_format($stats->return_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-money-bill-wave"></i> مدفوعات الفترة</span><strong class="sr-value sr-paid">{{ number_format($stats->paid_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="sr-kpi"><span class="sr-label"><i class="fas fa-file-invoice-dollar"></i> رصيد آخر الفترة</span><strong class="sr-value sr-due">{{ number_format($stats->closing_payable, 2) }}</strong><small>ج.م</small></div>
         </section>
         <section class="sr-card">
-            <div class="sr-card-head"><div><h2>الأرصدة المستحقة لكل مورد</h2><p>رصيد النهاية = رصيد البداية + مشتريات الفترة − المدفوعات خلال الفترة.</p></div><input type="search" class="form-control sr-search" data-supplier-search placeholder="ابحث باسم المورد أو الهاتف"></div>
+            <div class="sr-card-head"><div><h2>الأرصدة المستحقة لكل مورد</h2><p>رصيد النهاية يتضمن خصم مرتجعات المورد والمدفوعات المسجلة خلال الفترة.</p></div><input type="search" class="form-control sr-search" data-supplier-search placeholder="ابحث باسم المورد أو الهاتف"></div>
             <div class="sr-table-wrap"><table class="sr-table table" id="supplierTable">
-                <thead><tr><th>المورد</th><th>الهاتف</th><th>فواتير الفترة</th><th>رصيد أول الفترة</th><th>المشتريات</th><th>المدفوعات</th><th>رصيد آخر الفترة</th></tr></thead>
+                <thead><tr><th>المورد</th><th>الهاتف</th><th>فواتير الفترة</th><th>رصيد أول الفترة</th><th>المشتريات</th><th>مرتجعات المورد</th><th>المدفوعات</th><th>رصيد آخر الفترة</th></tr></thead>
                 <tbody>
                 @forelse ($suppliers as $supplier)
-                    <tr><td><div class="sr-name"><strong>{{ $supplier->supplier_name }}</strong><small>كود المورد: {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->supplier_phone }}</td><td>{{ $supplier->invoice_count }}</td><td class="sr-num">{{ number_format($supplier->opening_payable, 2) }} ج.م</td><td class="sr-num">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="sr-num sr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td><td class="sr-num sr-due">{{ number_format($supplier->closing_payable, 2) }} ج.م</td></tr>
+                    <tr><td><div class="sr-name"><strong>{{ $supplier->supplier_name }}</strong><small>كود المورد: {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->supplier_phone }}</td><td>{{ $supplier->invoice_count }}</td><td class="sr-num">{{ number_format($supplier->opening_payable, 2) }} ج.م</td><td class="sr-num">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="sr-num sr-due">{{ number_format($supplier->return_amount, 2) }} ج.م</td><td class="sr-num sr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td><td class="sr-num sr-due">{{ number_format($supplier->closing_payable, 2) }} ج.م</td></tr>
                 @empty
-                    <tr><td colspan="7" class="sr-empty">لا توجد أرصدة أو حركات للموردين خلال الفترة.</td></tr>
+                    <tr><td colspan="8" class="sr-empty">لا توجد أرصدة أو حركات للموردين خلال الفترة.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>

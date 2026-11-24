@@ -103,12 +103,13 @@
         <a class="pf-tab {{ $comparison ? 'active' : '' }}" href="{{ $reportRoutes['comparison'] }}"><i class="fas fa-balance-scale"></i> مقارنة الفترات</a>
     </nav>
 
-    <div class="pf-note"><i class="fas fa-info-circle ml-1"></i> الربح الإجمالي تقديري، وصافي الربح يساوي الربح الإجمالي ناقص المصروفات المسجلة خلال الفترة، قبل الضرائب. تُحسب تكلفة الصنف بمتوسط تكلفة مشترياته المرجّح خلال الفترة، أو بالتكلفة الحالية عند عدم وجود مشتريات بالفترة. الأصناف التي لا تتوفر لها تكلفة مستبعدة من الربح وتظهر مبيعاتها كقيمة غير مسعّرة. لا يرتبط سجل فواتير المبيعات بفرع، لذلك المقارنة إجمالية للمنشأة.</div>
+    <div class="pf-note"><i class="fas fa-info-circle ml-1"></i> الربح الإجمالي تقديري، وصافي الربح يساوي الربح الإجمالي ناقص المصروفات المسجلة خلال الفترة، قبل الضرائب. يستبعد متوسط تكلفة الصنف قيمة وكميات مرتجعات المورد خلال الفترة. الأصناف التي لا تتوفر لها تكلفة مستبعدة من الربح وتظهر مبيعاتها كقيمة غير مسعّرة.</div>
 
     @if (! $comparison)
         <section class="pf-kpis">
             <div class="pf-kpi"><span class="pf-label"><i class="fas fa-money-bill-wave"></i> صافي المبيعات</span><strong class="pf-value">{{ number_format($stats->sales_amount, 2) }}</strong><small>ج.م بعد الخصومات والمرتجعات</small></div>
             <div class="pf-kpi"><span class="pf-label"><i class="fas fa-box-open"></i> تكلفة البضاعة المسعّرة</span><strong class="pf-value">{{ number_format($stats->cost_of_goods, 2) }}</strong><small>ج.م تقديريًا</small></div>
+            <div class="pf-kpi"><span class="pf-label"><i class="fas fa-undo"></i> مرتجعات المشتريات</span><strong class="pf-value">{{ number_format($stats->purchase_return_amount, 2) }}</strong><small>{{ number_format($stats->purchase_return_quantity) }} وحدة · ج.م</small></div>
             <div class="pf-kpi"><span class="pf-label"><i class="fas fa-chart-line"></i> الربح الإجمالي التقديري</span><strong class="pf-value {{ $stats->gross_profit >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($stats->gross_profit, 2) }}</strong><small>ج.م للأصناف ذات التكلفة</small></div>
             <div class="pf-kpi"><span class="pf-label"><i class="fas fa-receipt"></i> المصروفات المسجلة</span><strong class="pf-value">{{ number_format($stats->expenses_amount, 2) }}</strong><small>ج.م خلال الفترة</small></div>
             <div class="pf-kpi"><span class="pf-label"><i class="fas fa-wallet"></i> صافي الربح بعد المصروفات</span><strong class="pf-value {{ $stats->net_profit >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($stats->net_profit, 2) }}</strong><small>ج.م قبل الضرائب</small></div>
@@ -164,6 +165,7 @@
                 <div class="pf-period-date">{{ $startDate }} — {{ $endDate }}</div>
                 <div class="pf-period-metric"><span>صافي المبيعات</span><strong>{{ number_format($currentStats->sales_amount, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>تكلفة البضاعة المسعّرة</span><strong>{{ number_format($currentStats->cost_of_goods, 2) }} ج.م</strong></div>
+                <div class="pf-period-metric"><span>مرتجعات المشتريات</span><strong>{{ number_format($currentStats->purchase_return_amount, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>الربح الإجمالي التقديري</span><strong class="{{ $currentStats->gross_profit >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($currentStats->gross_profit, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>المصروفات المسجلة</span><strong>{{ number_format($currentStats->expenses_amount, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>صافي الربح بعد المصروفات</span><strong class="{{ $currentStats->net_profit >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($currentStats->net_profit, 2) }} ج.م</strong></div>
@@ -174,6 +176,7 @@
                 <div class="pf-period-date">{{ $previousStartDate }} — {{ $previousEndDate }}</div>
                 <div class="pf-period-metric"><span>صافي المبيعات</span><strong>{{ number_format($previousStats->sales_amount, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>تكلفة البضاعة المسعّرة</span><strong>{{ number_format($previousStats->cost_of_goods, 2) }} ج.م</strong></div>
+                <div class="pf-period-metric"><span>مرتجعات المشتريات</span><strong>{{ number_format($previousStats->purchase_return_amount, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>الربح الإجمالي التقديري</span><strong>{{ number_format($previousStats->gross_profit, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>المصروفات المسجلة</span><strong>{{ number_format($previousStats->expenses_amount, 2) }} ج.م</strong></div>
                 <div class="pf-period-metric"><span>صافي الربح بعد المصروفات</span><strong class="{{ $previousStats->net_profit >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($previousStats->net_profit, 2) }} ج.م</strong></div>
@@ -187,6 +190,7 @@
                 <tbody>
                     <tr><td>صافي المبيعات</td><td class="pf-num">{{ number_format($previousStats->sales_amount, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->sales_amount, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->sales_amount - $previousStats->sales_amount, 2) }} ج.م</td></tr>
                     <tr><td>تكلفة البضاعة المسعّرة</td><td class="pf-num">{{ number_format($previousStats->cost_of_goods, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->cost_of_goods, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->cost_of_goods - $previousStats->cost_of_goods, 2) }} ج.م</td></tr>
+                    <tr><td>مرتجعات المشتريات</td><td class="pf-num">{{ number_format($previousStats->purchase_return_amount, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->purchase_return_amount, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->purchase_return_amount - $previousStats->purchase_return_amount, 2) }} ج.م</td></tr>
                     <tr><td>الربح الإجمالي التقديري</td><td class="pf-num">{{ number_format($previousStats->gross_profit, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->gross_profit, 2) }} ج.م</td><td class="pf-num {{ $profitChange >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($profitChange, 2) }} ج.م</td></tr>
                     <tr><td>المصروفات المسجلة</td><td class="pf-num">{{ number_format($previousStats->expenses_amount, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->expenses_amount, 2) }} ج.م</td><td class="pf-num">{{ number_format($currentStats->expenses_amount - $previousStats->expenses_amount, 2) }} ج.م</td></tr>
                     <tr><td>صافي الربح بعد المصروفات</td><td class="pf-num {{ $previousStats->net_profit >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($previousStats->net_profit, 2) }} ج.م</td><td class="pf-num {{ $currentStats->net_profit >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($currentStats->net_profit, 2) }} ج.م</td><td class="pf-num {{ $netProfitChange >= 0 ? 'pf-profit' : 'pf-loss' }}">{{ number_format($netProfitChange, 2) }} ج.م</td></tr>

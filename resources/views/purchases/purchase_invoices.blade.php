@@ -43,6 +43,10 @@
 /* ---------- Table ---------- */
 .pi-table { margin-bottom: 0; }
 .pi-table thead th { background: #f9fafb; color: var(--pi-muted); font-size: .78rem; font-weight: 700; letter-spacing: .02em; border-bottom: 1px solid var(--pi-border) !important; white-space: nowrap; padding: 14px 16px; }
+.pi-sort-link { display: inline-flex; align-items: center; gap: 7px; color: inherit; text-decoration: none; }
+.pi-sort-link:hover, .pi-sort-link:focus { color: var(--pi-primary); text-decoration: none; }
+.pi-sort-link .fa-sort { opacity: .4; }
+.pi-sort-link .fa-sort-up, .pi-sort-link .fa-sort-down { color: var(--pi-primary); }
 .pi-table tbody td { vertical-align: middle; padding: 14px 16px; color: var(--pi-text); border-top: 1px solid var(--pi-border); }
 .pi-table tbody tr { transition: background .15s ease; }
 .pi-table tbody tr:hover { background: #f8faff; }
@@ -180,6 +184,19 @@
     $items   = $isPaginator ? collect($invoices->items()) : collect($invoices);
     $perPage = $isPaginator ? $invoices->perPage() : null;
     $perPageOptions = collect([10, 15, 25, 50, 100])->push($perPage)->filter()->unique()->sort()->values();
+    $sortableColumns = ['id', 'date', 'supplier', 'total', 'paid', 'remaining', 'status', 'created_at'];
+    $sortColumn = in_array(request('sort'), $sortableColumns, true) ? request('sort') : 'date';
+    $sortDirection = in_array(request('direction'), ['asc', 'desc'], true) ? request('direction') : 'desc';
+    $sortUrl = function ($column) use ($sortColumn, $sortDirection) {
+        $direction = $sortColumn === $column && $sortDirection === 'asc' ? 'desc' : 'asc';
+        return request()->fullUrlWithQuery(['sort' => $column, 'direction' => $direction, 'page' => 1]);
+    };
+    $sortIcon = fn ($column) => $sortColumn !== $column
+        ? 'fa-sort'
+        : ($sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down');
+    $sortAria = fn ($column) => $sortColumn !== $column
+        ? 'none'
+        : ($sortDirection === 'asc' ? 'ascending' : 'descending');
 
     // ---------- Helpers ----------
     $fmt   = fn ($d, $f = 'Y-m-d') => $d ? \Carbon\Carbon::parse($d)->format($f) : '—';
@@ -239,6 +256,8 @@
 
             {{-- Search + page size (both are plain GET params, so they survive pagination) --}}
             <form method="GET" action="{{ route('purchase_invoices') }}" class="pi-toolbar" role="search" id="filterForm">
+                <input type="hidden" name="sort" value="{{ $sortColumn }}">
+                <input type="hidden" name="direction" value="{{ $sortDirection }}">
                 <div class="pi-search">
                     <label class="sr-only" for="invoice-search">بحث برقم الفاتورة</label>
                     <input id="invoice-search" type="search" name="search" value="{{ request('search') }}"
@@ -247,7 +266,7 @@
                 </div>
                 <button type="submit" class="btn btn-primary" id="searchBtn"><i class="fas fa-search ml-1"></i> بحث</button>
                 @if (request()->filled('search'))
-                    <a href="{{ route('purchase_invoices', array_filter(['per_page' => request('per_page')])) }}" class="btn btn-light">
+                    <a href="{{ route('purchase_invoices', array_filter(['per_page' => request('per_page'), 'sort' => $sortColumn, 'direction' => $sortDirection])) }}" class="btn btn-light">
                         <i class="fas fa-times ml-1"></i> مسح البحث
                     </a>
                 @endif
@@ -292,15 +311,16 @@
                 <table class="table text-md-nowrap pi-table">
                     <thead>
                         <tr>
-                            <th>رقم الفاتورة</th>
-                            <th>تاريخ الفاتورة</th>
-                            <th>اسم المورد</th>
-                            <th>إجمالي الفاتورة</th>
-                            <th>المبلغ المدفوع</th>
-                            <th>المبلغ المتبقي</th>
-                            <th>الحالة</th>
+                            <th aria-sort="{{ $sortAria('id') }}"><a class="pi-sort-link" href="{{ $sortUrl('id') }}">رقم الفاتورة <i class="fas {{ $sortIcon('id') }}" aria-hidden="true"></i></a></th>
+                            <th aria-sort="{{ $sortAria('date') }}"><a class="pi-sort-link" href="{{ $sortUrl('date') }}">تاريخ الفاتورة <i class="fas {{ $sortIcon('date') }}" aria-hidden="true"></i></a></th>
+                            <th aria-sort="{{ $sortAria('supplier') }}"><a class="pi-sort-link" href="{{ $sortUrl('supplier') }}">اسم المورد <i class="fas {{ $sortIcon('supplier') }}" aria-hidden="true"></i></a></th>
+                            <th aria-sort="{{ $sortAria('total') }}"><a class="pi-sort-link" href="{{ $sortUrl('total') }}">إجمالي الفاتورة <i class="fas {{ $sortIcon('total') }}" aria-hidden="true"></i></a></th>
+                            <th>مرتجعات المورد</th>
+                            <th aria-sort="{{ $sortAria('paid') }}"><a class="pi-sort-link" href="{{ $sortUrl('paid') }}">المبلغ المدفوع <i class="fas {{ $sortIcon('paid') }}" aria-hidden="true"></i></a></th>
+                            <th aria-sort="{{ $sortAria('remaining') }}"><a class="pi-sort-link" href="{{ $sortUrl('remaining') }}">المبلغ المتبقي <i class="fas {{ $sortIcon('remaining') }}" aria-hidden="true"></i></a></th>
+                            <th aria-sort="{{ $sortAria('status') }}"><a class="pi-sort-link" href="{{ $sortUrl('status') }}">الحالة <i class="fas {{ $sortIcon('status') }}" aria-hidden="true"></i></a></th>
                             <th>الإجراءات</th>
-                            <th>تاريخ التسجيل</th>
+                            <th aria-sort="{{ $sortAria('created_at') }}"><a class="pi-sort-link" href="{{ $sortUrl('created_at') }}">تاريخ التسجيل <i class="fas {{ $sortIcon('created_at') }}" aria-hidden="true"></i></a></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -318,6 +338,10 @@
                                 <td>{{ $fmt($invoice->date) }}</td>
                                 <td>{{ $invoice->supplier_name ?? '—' }}</td>
                                 <td class="pi-num">{{ $money($totalAmt) }} ج.م</td>
+                                <td class="pi-num {{ $invoice->purchase_return_amount > 0 ? 'pi-debt' : 'pi-muted' }}">
+                                    {{ $money($invoice->purchase_return_amount) }} ج.م
+                                    @if($invoice->purchase_return_count > 0)<small class="d-block">{{ $invoice->purchase_return_count }} مرتجع · {{ number_format($invoice->purchase_return_quantity) }} وحدة</small>@endif
+                                </td>
                                 <td class="pi-num">
                                     {{ $money($paidAmt) }} ج.م
                                     <div class="pi-mini-progress" title="نسبة السداد {{ round($percent) }}%"><span style="width: {{ $percent }}%"></span></div>
@@ -352,7 +376,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9">
+                                <td colspan="10">
                                     <div class="pi-empty">
                                         <i class="fas fa-file-invoice d-block"></i>
                                         <h5>لا توجد فواتير مشتريات</h5>
@@ -455,6 +479,7 @@
         $paidAmt   = $calcPaid($invoice);
         $details   = $invoiceDetailsByInvoice->get($invoice->id, collect());
         $supplierPayments = $supplierPaymentsByInvoice->get($invoice->id, collect());
+        $purchaseReturns = $purchaseReturnDetailsByInvoice->get($invoice->id, collect());
         $initialPaid = (float) ($invoice->paid_amount ?? 0);
         $sumLines  = $details->sum(fn ($d) => (float) $d->total_product);
         $sumProfit = $details->sum(fn ($d) => ($d->quantity_product * ($d->product_price ?? 0)) - ($d->quantity_product * $d->purchase_price));
@@ -473,6 +498,7 @@
                         <div class="pi-info"><small>رقم الفاتورة</small><strong>#{{ $invoice->id }}</strong></div>
                         <div class="pi-info"><small>تاريخ الفاتورة</small><strong>{{ $fmt($invoice->date) }}</strong></div>
                         <div class="pi-info"><small>المورد</small><strong>{{ $invoice->supplier_name ?? '—' }}</strong></div>
+                        <div class="pi-info"><small>قيمة مرتجعات المورد</small><strong class="{{ $invoice->purchase_return_amount > 0 ? 'pi-debt' : 'pi-muted' }}">{{ $money($invoice->purchase_return_amount) }} ج.م</strong></div>
                     </div>
 
                     <h6 class="pi-section-title"><i class="fas fa-boxes ml-1"></i> أصناف الفاتورة</h6>
@@ -524,9 +550,25 @@
                     <h6 class="pi-section-title"><i class="fas fa-wallet ml-1"></i> الملخص المالي</h6>
                     <div class="pi-info-grid">
                         <div class="pi-info total"><small>إجمالي الفاتورة</small><strong>{{ $money($invoice->total_amount) }} ج.م</strong></div>
+                        <div class="pi-info"><small>قيمة مرتجعات المورد</small><strong class="pi-debt">{{ $money($invoice->purchase_return_amount) }} ج.م</strong></div>
+                        <div class="pi-info"><small>صافي قيمة البضاعة بعد المرتجع</small><strong>{{ $money(max(0, (float) $invoice->total_amount - (float) $invoice->purchase_return_amount)) }} ج.م</strong></div>
                         <div class="pi-info paid"><small>المبلغ المدفوع</small><strong>{{ $money($paidAmt) }} ج.م</strong></div>
                         <div class="pi-info remain"><small>المبلغ المتبقي (دين)</small><strong>{{ $money($remaining) }} ج.م</strong></div>
                     </div>
+
+                    <h6 class="pi-section-title"><i class="fas fa-undo ml-1"></i> تفاصيل مرتجعات المشتريات</h6>
+                    @if ($purchaseReturns->isNotEmpty())
+                        <div class="pi-items table-responsive"><table class="table text-md-nowrap">
+                            <thead><tr><th>رقم المرتجع</th><th>تاريخ المرتجع</th><th>المنتج</th><th>الكمية</th><th>تكلفة الوحدة</th><th>القيمة</th></tr></thead>
+                            <tbody>@foreach ($purchaseReturns as $purchaseReturn)<tr>
+                                <td><a href="{{ route('purchases.returns.show', $purchaseReturn->return_invoice_id) }}">#{{ $purchaseReturn->return_invoice_id }}</a></td>
+                                <td>{{ $fmt($purchaseReturn->return_date) }}</td><td>{{ $purchaseReturn->product_name ?? 'منتج محذوف' }}</td>
+                                <td>{{ number_format($purchaseReturn->quantity) }}</td><td>{{ $money($purchaseReturn->unit_price) }} ج.م</td><td class="pi-debt">{{ $money($purchaseReturn->total_amount) }} ج.م</td>
+                            </tr>@endforeach</tbody>
+                        </table></div>
+                    @else
+                        <div class="pi-muted py-2">لا توجد مرتجعات مسجلة على هذه الفاتورة.</div>
+                    @endif
 
                     <h6 class="pi-section-title"><i class="fas fa-hand-holding-usd ml-1"></i> سجل دفعات المورد</h6>
                     <div class="pi-items table-responsive">
@@ -594,6 +636,7 @@
                 </div>
 
                 <div class="modal-footer">
+                    <a class="btn btn-outline-danger" href="{{ route('purchases.returns.index', ['invoice_id' => $invoice->id]) }}"><i class="fas fa-undo ml-1"></i> تسجيل / عرض المرتجعات</a>
                     <button class="btn btn-secondary" data-dismiss="modal" type="button">إغلاق</button>
                 </div>
             </div>

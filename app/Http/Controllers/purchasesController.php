@@ -22,9 +22,31 @@ class purchasesController extends Controller
         $allowedPageSizes = [10, 15, 25, 50, 100];
         $requestedPageSize = (int) $request->query('per_page', 50);
         $perPage = in_array($requestedPageSize, $allowedPageSizes, true) ? $requestedPageSize : 50;
+        $sortOptions = [
+            'id' => 'purchase_invoices.id',
+            'date' => 'purchase_invoices.date',
+            'supplier' => 'suppliers.name',
+            'total' => 'purchase_invoices.total_amount',
+            'paid' => 'total_paid_amount',
+            'remaining' => 'payment_remaning_amount',
+            'created_at' => 'purchase_invoices.created_at',
+        ];
+        $sort = (string) $request->query('sort', 'date');
+        if (! array_key_exists($sort, $sortOptions) && $sort !== 'status') {
+            $sort = 'date';
+        }
+        $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $paymentTotalsForSort = DB::table('supplier_payments')
+            ->whereNull('deleted_at')
+            ->select('purchases_invoice_id')
+            ->selectRaw('COALESCE(SUM(amount_paid), 0) AS total_amount_paid')
+            ->groupBy('purchases_invoice_id');
 
-        $invoices = DB::table('purchase_invoices')
+        $invoiceQuery = DB::table('purchase_invoices')
             ->join('users', 'purchase_invoices.user_id', '=', 'users.id')
+            ->leftJoinSub($paymentTotalsForSort, 'supplier_payment_totals', function ($join) {
+                $join->on('supplier_payment_totals.purchases_invoice_id', '=', 'purchase_invoices.id');
+            })
             ->leftJoin('suppliers', function ($join) {
                 $join->on('purchase_invoices.supplier_id', '=', 'suppliers.id')
                     ->whereNull('suppliers.deleted_at');
@@ -34,7 +56,9 @@ class purchasesController extends Controller
                 'purchase_invoices.id AS purchase_invoices_id',
                 'users.id AS user_id',
                 'users.name AS user_name',
-                'suppliers.name AS supplier_name'
+                'suppliers.name AS supplier_name',
+                DB::raw('(COALESCE(purchase_invoices.paid_amount, 0) + COALESCE(supplier_payment_totals.total_amount_paid, 0)) AS total_paid_amount'),
+                DB::raw('GREATEST(COALESCE(purchase_invoices.remaining_amount, 0) - COALESCE(supplier_payment_totals.total_amount_paid, 0), 0) AS payment_remaning_amount')
             )
             ->whereNull('purchase_invoices.deleted_at')
             ->when($editId !== '', function ($query) use ($editId) {
@@ -42,11 +66,20 @@ class purchasesController extends Controller
             })
             ->when($editId === '' && $search !== '', function ($query) use ($search) {
                 $query->where('purchase_invoices.id', 'like', '%' . $search . '%');
-            })
-            ->orderByDesc('purchase_invoices.date')
-            ->orderByDesc('purchase_invoices.id')
-            ->paginate($perPage)
-            ->withQueryString();
+            });
+
+        if ($sort === 'status') {
+            $invoiceQuery->orderByRaw(
+                "CASE WHEN payment_remaning_amount <= 0 THEN 0 WHEN total_paid_amount > 0 THEN 1 ELSE 2 END {$direction}"
+            );
+        } else {
+            $invoiceQuery->orderBy($sortOptions[$sort], $direction);
+        }
+        if ($sort !== 'id') {
+            $invoiceQuery->orderByDesc('purchase_invoices.id');
+        }
+
+        $invoices = $invoiceQuery->paginate($perPage)->withQueryString();
 
         // An old or manually edited page number can be beyond the last page.
         // Send the user to the last available page instead of rendering an empty table.
@@ -55,6 +88,36 @@ class purchasesController extends Controller
         }
 
         $invoiceIds = $invoices->getCollection()->pluck('id');
+        $purchaseReturnSummaries = DB::table('purchase_return_invoices')
+            ->whereIn('original_invoice_id', $invoiceIds)
+            ->whereNull('deleted_at')
+            ->select('original_invoice_id')
+            ->selectRaw('COUNT(id) as return_count, SUM(total_amount) as return_amount')
+            ->groupBy('original_invoice_id')->get()->keyBy('original_invoice_id');
+        $purchaseReturnQuantities = DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->whereIn('returns.original_invoice_id', $invoiceIds)
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')
+            ->select('returns.original_invoice_id')->selectRaw('SUM(details.quantity) as return_quantity')
+            ->groupBy('returns.original_invoice_id')->get()->keyBy('original_invoice_id');
+        $purchaseReturnDetailsByInvoice = DB::table('purchase_return_invoice_details as details')
+            ->join('purchase_return_invoices as returns', 'returns.id', '=', 'details.return_invoice_id')
+            ->leftJoin('products', 'products.id', '=', 'details.product_id')
+            ->whereIn('returns.original_invoice_id', $invoiceIds)
+            ->whereNull('returns.deleted_at')->whereNull('details.deleted_at')
+            ->orderBy('returns.created_at')->orderBy('details.id')
+            ->get([
+                'returns.original_invoice_id', 'returns.id as return_invoice_id', 'returns.created_at as return_date',
+                'products.name as product_name', 'details.quantity', 'details.unit_price', 'details.total_amount',
+            ])->groupBy('original_invoice_id');
+
+        foreach ($invoices as $invoice) {
+            $summary = $purchaseReturnSummaries->get($invoice->id);
+            $quantity = $purchaseReturnQuantities->get($invoice->id);
+            $invoice->purchase_return_count = (int) ($summary->return_count ?? 0);
+            $invoice->purchase_return_amount = (float) ($summary->return_amount ?? 0);
+            $invoice->purchase_return_quantity = (float) ($quantity->return_quantity ?? 0);
+        }
         $paymentTotals = DB::table('supplier_payments')
             ->whereIn('purchases_invoice_id', $invoiceIds)
             ->whereNull('deleted_at')
@@ -118,7 +181,7 @@ class purchasesController extends Controller
         $selectedSupplierId = (int) $request->query('supplier_id', 0);
 
         return view('purchases.purchase_invoices', compact(
-            'invoices', 'invoiceDetailsByInvoice', 'supplierPaymentsByInvoice', 'suppliers', 'categories', 'selectedSupplierId'
+            'invoices', 'invoiceDetailsByInvoice', 'supplierPaymentsByInvoice', 'purchaseReturnDetailsByInvoice', 'suppliers', 'categories', 'selectedSupplierId'
         ));
     }
 

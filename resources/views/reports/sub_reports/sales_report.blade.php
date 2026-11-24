@@ -48,7 +48,7 @@
     .srp-card-head p { margin:4px 0 0; color:var(--srp-muted); font-size:12px; }
     .srp-search { width:min(100%,320px); }
     .srp-table-wrap { overflow:auto; }
-    .srp-table { width:100%; min-width:780px; margin:0; border-collapse:separate; border-spacing:0; }
+    .srp-table { width:100%; min-width:1050px; margin:0; border-collapse:separate; border-spacing:0; }
     .srp-table thead th { position:sticky; top:0; z-index:1; padding:12px 13px; border:0; background:#fff6ee; color:#78634f; font-size:12px; font-weight:800; white-space:nowrap; }
     .srp-table tbody td { padding:12px 13px; border-top:1px solid #f2eee9; color:#35435a; font-size:13px; vertical-align:middle; }
     .srp-table tbody tr:hover { background:#fffcf9; }
@@ -111,7 +111,7 @@
         </section>
         @if ($chartRows->isNotEmpty())<section class="srp-chart"><h2>اتجاه صافي المبيعات اليومي</h2><canvas id="salesChart"></canvas></section>@endif
     @elseif ($reportType === 'products')
-        <div class="srp-note"><i class="fas fa-info-circle ml-1"></i> تُوزع خصومات الفواتير والمرتجعات على المنتجات بنسبة قيمتها، بحيث تتطابق المجاميع مع قيمة الفواتير والمرتجعات المسجلة.</div>
+        <div class="srp-note"><i class="fas fa-info-circle ml-1"></i> تُوزع خصومات الفواتير والمرتجعات على المنتجات بنسبة قيمتها، بحيث تتطابق المجاميع مع قيمة الفواتير والمرتجعات المسجلة. تكلفة القطعة هي متوسط تكلفة الشراء المرجّح بالكميات خلال الفترة، أو التكلفة الحالية المسجلة إذا لم توجد مشتريات للصنف في الفترة. صافي ربح المنتج = صافي المبيعات بعد المرتجعات − تكلفة الكمية الصافية، قبل المصروفات العامة.</div>
         <section class="srp-kpis">
             <div class="srp-kpi"><span class="srp-label"><i class="fas fa-boxes"></i> المنتجات</span><strong class="srp-value">{{ number_format($stats->row_count) }}</strong><small>لها بيع أو مرتجع</small></div>
             <div class="srp-kpi"><span class="srp-label"><i class="fas fa-cubes"></i> الكمية المباعة</span><strong class="srp-value">{{ number_format($stats->sold_quantity) }}</strong><small>وحدة</small></div>
@@ -122,10 +122,10 @@
         <section class="srp-card">
             <div class="srp-card-head"><div><h2>تفاصيل المبيعات حسب المنتج</h2><p>تظهر المرتجعات حتى لو كان البيع الأصلي في فترة سابقة.</p></div><input type="search" class="form-control srp-search" data-sales-search placeholder="ابحث باسم المنتج أو كوده"></div>
             <div class="srp-table-wrap"><table class="srp-table table" id="salesTable">
-                <thead><tr><th>المنتج</th><th>الكمية المباعة</th><th>المرتجعة</th><th>صافي الكمية</th><th>قيمة الفواتير</th><th>قيمة المرتجعات</th><th>صافي المبيعات</th></tr></thead>
+                <thead><tr><th>المنتج</th><th>الكمية المباعة</th><th>المرتجعة</th><th>صافي الكمية</th><th>متوسط تكلفة القطعة</th><th>قيمة الفواتير</th><th>قيمة المرتجعات</th><th>صافي المبيعات</th><th>صافي الربح</th></tr></thead>
                 <tbody>@forelse ($rows as $row)
-                    <tr><td><div class="srp-name"><strong>{{ $row->product_name }}</strong><small>كود المنتج: {{ $row->product_id }}</small></div></td><td>{{ number_format($row->total_sold_quantity) }}</td><td>{{ number_format($row->returned_quantity) }}</td><td>{{ number_format($row->net_sold_quantity) }}</td><td class="srp-num">{{ number_format($row->sales_amount, 2) }} ج.م</td><td class="srp-num srp-return">{{ number_format($row->returned_amount, 2) }} ج.م</td><td class="srp-num srp-positive">{{ number_format($row->net_sales, 2) }} ج.م</td></tr>
-                @empty<tr><td colspan="7" class="srp-empty">لا توجد مبيعات أو مرتجعات للمنتجات خلال الفترة.</td></tr>@endforelse</tbody>
+                    <tr><td><div class="srp-name"><strong>{{ $row->product_name }}</strong><small>كود المنتج: {{ $row->product_id }}</small></div></td><td>{{ number_format($row->total_sold_quantity) }}</td><td>{{ number_format($row->returned_quantity) }}</td><td>{{ number_format($row->net_sold_quantity) }}</td><td class="srp-num">{{ $row->unit_cost === null ? '—' : number_format($row->unit_cost, 2).' ج.م' }}</td><td class="srp-num">{{ number_format($row->sales_amount, 2) }} ج.م</td><td class="srp-num srp-return">{{ number_format($row->returned_amount, 2) }} ج.م</td><td class="srp-num srp-positive">{{ number_format($row->net_sales, 2) }} ج.م</td><td class="srp-num {{ $row->net_profit === null ? '' : ($row->net_profit >= 0 ? 'srp-positive' : 'srp-return') }}">{{ $row->net_profit === null ? '—' : number_format($row->net_profit, 2).' ج.م' }}</td></tr>
+                @empty<tr><td colspan="9" class="srp-empty">لا توجد مبيعات أو مرتجعات للمنتجات خلال الفترة.</td></tr>@endforelse</tbody>
             </table></div>
         </section>
         @if ($chartRows->isNotEmpty())<section class="srp-chart"><h2>أعلى المنتجات حسب صافي المبيعات</h2><canvas id="salesChart"></canvas></section>@endif

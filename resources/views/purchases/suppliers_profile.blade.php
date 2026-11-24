@@ -140,6 +140,8 @@
     $detailsByInvoice       = collect($purchaseDetails)->groupBy('purchase_invoices_id');
     $creditDetailsByInvoice = collect($creditDetails)->groupBy('purchase_invoices_id');
     $paymentsByInvoice      = $payments->groupBy('purchases_invoice_id');
+    $purchaseReturnDetailsByInvoice = $purchaseReturnDetailsByInvoice ?? collect();
+    $supplierPurchaseReturnAmount = collect($purchaseReturnSummaries ?? [])->sum('return_amount');
 
     // Barcode data per invoice (rendered by JS when printing)
     $barcodeMap = $detailsByInvoice->mapWithKeys(function ($items, $key) {
@@ -234,7 +236,7 @@
 
     {{-- ============ Stats ============ --}}
     <div class="row row-sm">
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-12 col-md-3 mb-3">
             <div class="card stat-card"><div class="card-body d-flex align-items-center">
                 <div class="stat-icon blue ml-3"><i class="fas fa-layer-group"></i></div>
                 <div>
@@ -243,7 +245,7 @@
                 </div>
             </div></div>
         </div>
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-12 col-md-3 mb-3">
             <div class="card stat-card"><div class="card-body d-flex align-items-center">
                 <div class="stat-icon green ml-3"><i class="fas fa-money-bill-wave"></i></div>
                 <div>
@@ -252,13 +254,19 @@
                 </div>
             </div></div>
         </div>
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-12 col-md-3 mb-3">
             <div class="card stat-card"><div class="card-body d-flex align-items-center">
                 <div class="stat-icon orange ml-3"><i class="fas fa-file-invoice"></i></div>
                 <div>
                     <div class="stat-value">{{ $creditCount > 0 ? number_format($creditCount) : 'لا توجد فواتير آجلة' }}</div>
                     <div class="stat-label">عدد الفواتير الآجلة</div>
                 </div>
+            </div></div>
+        </div>
+        <div class="col-12 col-md-3 mb-3">
+            <div class="card stat-card"><div class="card-body d-flex align-items-center">
+                <div class="stat-icon orange ml-3"><i class="fas fa-undo"></i></div>
+                <div><div class="stat-value">{{ $money($supplierPurchaseReturnAmount) }} ج.م</div><div class="stat-label">مرتجعات المشتريات</div></div>
             </div></div>
         </div>
     </div>
@@ -306,6 +314,7 @@
                                         <th>كود الفاتورة</th>
                                         <th>تاريخ الفاتورة</th>
                                         <th>المبلغ</th>
+                                        <th>مرتجعات المورد</th>
                                         <th>طريقة الدفع</th>
                                         <th>المبلغ المدفوع</th>
                                         <th>تاريخ التسجيل</th>
@@ -319,6 +328,7 @@
                                             <td data-order="{{ (int) $invoice->id }}"><strong>#{{ $invoice->id }}</strong></td>
                                             <td data-order="{{ $ts($invoice->date) }}">{{ $fmt($invoice->date, 'Y-m-d') }}</td>
                                             <td data-order="{{ (float) $invoice->total_amount }}"><span class="money">{{ $money($invoice->total_amount) }} ج.م</span></td>
+                                            <td data-order="{{ (float) $invoice->purchase_return_amount }}"><span class="money {{ $invoice->purchase_return_amount > 0 ? 'text-debt' : '' }}">{{ $money($invoice->purchase_return_amount) }} ج.م</span>@if($invoice->purchase_return_count > 0)<small class="d-block">{{ $invoice->purchase_return_count }} مرتجع · {{ number_format($invoice->purchase_return_quantity) }} وحدة</small>@endif</td>
                                             <td><span class="badge-soft {{ $pmClass }}">{{ $pmLabel }}</span></td>
                                             <td data-order="{{ (float) $invoice->total_paid_amount }}">{{ $money($invoice->total_paid_amount) }} ج.م</td>
                                             <td data-order="{{ $ts($invoice->created_at) }}"><span class="date-text"><i class="far fa-clock ml-1"></i>{{ $fmt($invoice->created_at) }}</span></td>
@@ -352,6 +362,7 @@
                                         <th>كود الفاتورة</th>
                                         <th>تاريخ الفاتورة</th>
                                         <th>المبلغ</th>
+                                        <th>مرتجعات المورد</th>
                                         <th>طريقة الدفع</th>
                                         <th>المبلغ المدفوع</th>
                                         <th>المبلغ المتبقي</th>
@@ -372,6 +383,7 @@
                                             <td data-order="{{ (int) $invoice->purchase_invoices_id }}"><strong>#{{ $invoice->purchase_invoices_id }}</strong></td>
                                             <td data-order="{{ $ts($invoice->date) }}">{{ $fmt($invoice->date, 'Y-m-d') }}</td>
                                             <td data-order="{{ $total }}"><span class="money">{{ $money($total) }} ج.م</span></td>
+                                            <td data-order="{{ (float) $invoice->purchase_return_amount }}"><span class="money {{ $invoice->purchase_return_amount > 0 ? 'text-debt' : '' }}">{{ $money($invoice->purchase_return_amount) }} ج.م</span>@if($invoice->purchase_return_count > 0)<small class="d-block">{{ $invoice->purchase_return_count }} مرتجع · {{ number_format($invoice->purchase_return_quantity) }} وحدة</small>@endif</td>
                                             <td><span class="badge-soft {{ $pmClass }}">{{ $pmLabel }}</span></td>
                                             <td data-order="{{ (float) $invoice->total_paid_amount }}">{{ $money($invoice->total_paid_amount) }} ج.م</td>
                                             <td data-order="{{ $remaining }}">
@@ -477,6 +489,7 @@
 @foreach ($purchaseInvoices as $invoice)
     @php
         $items = $detailsByInvoice->get($invoice->id, collect());
+        $purchaseReturns = $purchaseReturnDetailsByInvoice->get($invoice->id, collect());
         [$pmLabel, $pmClass] = $pm($invoice->payment_method);
     @endphp
     <div class="modal fade supplier-modal" id="invoiceDetailsModal{{ $invoice->id }}" tabindex="-1" role="dialog" aria-hidden="true">
@@ -491,6 +504,7 @@
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">تاريخ الفاتورة</span><span class="v">{{ $fmt($invoice->date, 'Y-m-d') }}</span></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">اسم المستخدم</span><span class="v">{{ $invoice->user_name ?? '—' }}</span></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">المبلغ الإجمالي</span><span class="v text-success">{{ $money($invoice->total_amount) }} ج.م</span></div></div>
+                        <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">مرتجعات المورد</span><span class="v text-debt">{{ $money($invoice->purchase_return_amount) }} ج.م · {{ $invoice->purchase_return_count }} مرتجع</span></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">طريقة الدفع</span><span class="badge-soft {{ $pmClass }}">{{ $pmLabel }}</span></div></div>
                     </div>
 
@@ -517,8 +531,21 @@
                     @else
                         <div class="text-muted text-center py-3">لا توجد أصناف مسجلة لهذه الفاتورة.</div>
                     @endif
+
+                    <div class="section-title"><i class="fas fa-undo ml-1"></i> مرتجعات المشتريات المسجلة</div>
+                    @if ($purchaseReturns->isNotEmpty())
+                        <div class="table-responsive"><table class="table table-bordered table-sm text-center mb-0">
+                            <thead class="thead-light"><tr><th>رقم المرتجع</th><th>التاريخ</th><th>الصنف</th><th>الكمية</th><th>تكلفة الوحدة</th><th>الإجمالي</th></tr></thead>
+                            <tbody>@foreach ($purchaseReturns as $purchaseReturn)<tr>
+                                <td><a href="{{ route('purchases.returns.show', $purchaseReturn->return_invoice_id) }}">#{{ $purchaseReturn->return_invoice_id }}</a></td><td>{{ $fmt($purchaseReturn->return_date) }}</td><td>{{ $purchaseReturn->product_name ?? 'منتج محذوف' }}</td><td>{{ number_format($purchaseReturn->quantity) }}</td><td>{{ $money($purchaseReturn->unit_price) }} ج.م</td><td class="text-debt">{{ $money($purchaseReturn->total_amount) }} ج.م</td>
+                            </tr>@endforeach</tbody>
+                        </table></div>
+                    @else
+                        <div class="text-muted text-center py-2">لا توجد مرتجعات مسجلة لهذه الفاتورة.</div>
+                    @endif
                 </div>
                 <div class="modal-footer">
+                    <a class="btn btn-outline-danger" href="{{ route('purchases.returns.index', ['invoice_id' => $invoice->id]) }}"><i class="fas fa-undo ml-1"></i> تسجيل / عرض المرتجعات</a>
                     <a href="{{ route('suppliers.printInvoice', ['invoice_no' => $invoice->id, 'supplier_id' => $printSupplierId]) }}"
                        class="btn btn-info js-popup-print" target="_blank" rel="noopener"><i class="fas fa-print ml-1"></i> طباعة</a>
                     @if ($items->isNotEmpty())
@@ -536,6 +563,7 @@
     @php
         $invId     = $invoice->purchase_invoices_id;
         $items     = $creditDetailsByInvoice->get($invId, collect());
+        $purchaseReturns = $purchaseReturnDetailsByInvoice->get($invId, collect());
         $head      = $items->first();
         $invPays   = $paymentsByInvoice->get($invId, collect());
         $remaining = (float) $invoice->payment_remaning_amount;
@@ -563,6 +591,7 @@
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">اسم المستخدم</span><span class="v">{{ $hUser }}</span></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">طريقة الدفع</span><span class="badge-soft {{ $pmClass }}">{{ $pmLabel }}</span></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">المبلغ الإجمالي</span><span class="v text-success">{{ $money($hTotal) }} ج.م</span></div></div>
+                        <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">مرتجعات المورد</span><span class="v text-debt">{{ $money($invoice->purchase_return_amount) }} ج.م · {{ $invoice->purchase_return_count }} مرتجع</span></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">المبلغ المدفوع</span><span class="v text-success">{{ $money($hPaid) }} ج.م</span></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="info-tile"><span class="k">المبلغ المتبقي</span><span class="v text-debt">{{ $money($hRemain) }} ج.م</span></div></div>
                     </div>
@@ -590,6 +619,18 @@
                         <div class="text-muted text-center py-3">لا توجد أصناف مسجلة لهذه الفاتورة.</div>
                     @endif
 
+                    <div class="section-title"><i class="fas fa-undo ml-1"></i> مرتجعات المشتريات المسجلة</div>
+                    @if ($purchaseReturns->isNotEmpty())
+                        <div class="table-responsive"><table class="table table-bordered table-sm text-center mb-0">
+                            <thead class="thead-light"><tr><th>رقم المرتجع</th><th>التاريخ</th><th>الصنف</th><th>الكمية</th><th>تكلفة الوحدة</th><th>الإجمالي</th></tr></thead>
+                            <tbody>@foreach ($purchaseReturns as $purchaseReturn)<tr>
+                                <td><a href="{{ route('purchases.returns.show', $purchaseReturn->return_invoice_id) }}">#{{ $purchaseReturn->return_invoice_id }}</a></td><td>{{ $fmt($purchaseReturn->return_date) }}</td><td>{{ $purchaseReturn->product_name ?? 'منتج محذوف' }}</td><td>{{ number_format($purchaseReturn->quantity) }}</td><td>{{ $money($purchaseReturn->unit_price) }} ج.م</td><td class="text-debt">{{ $money($purchaseReturn->total_amount) }} ج.م</td>
+                            </tr>@endforeach</tbody>
+                        </table></div>
+                    @else
+                        <div class="text-muted text-center py-2">لا توجد مرتجعات مسجلة لهذه الفاتورة.</div>
+                    @endif
+
                     <div class="section-title"><i class="fas fa-history ml-1"></i> سجل الدفعات</div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-sm text-center mb-0">
@@ -612,6 +653,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <a class="btn btn-outline-danger" href="{{ route('purchases.returns.index', ['invoice_id' => $invId]) }}"><i class="fas fa-undo ml-1"></i> تسجيل / عرض المرتجعات</a>
                     <a href="{{ route('suppliers.printInvoice', ['invoice_no' => $invId, 'supplier_id' => $printSupplierId]) }}"
                        class="btn btn-info js-popup-print" target="_blank" rel="noopener"><i class="fas fa-print ml-1"></i> طباعة</a>
                     <button type="button" class="btn btn-light" data-dismiss="modal">إغلاق</button>

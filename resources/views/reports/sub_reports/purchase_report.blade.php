@@ -3,10 +3,10 @@
 
 @php
     $reportMeta = [
-        'total' => ['title' => 'ملخص المشتريات', 'subtitle' => 'قيمة فواتير الشراء والمدفوعات المسجلة يوميًا.', 'icon' => 'fa-chart-pie'],
-        'suppliers' => ['title' => 'المشتريات حسب المورد', 'subtitle' => 'قارن مشتريات الموردين ومدفوعاتهم المسجلة خلال الفترة.', 'icon' => 'fa-truck'],
-        'products' => ['title' => 'المشتريات حسب المنتج', 'subtitle' => 'راجع كميات الشراء ومتوسط تكلفة الوحدة لكل صنف.', 'icon' => 'fa-box'],
-        'payments' => ['title' => 'مدفوعات وأرصدة الموردين', 'subtitle' => 'تابع رصيد المورد أول الفترة، مشترياته، مدفوعاته، ورصيده في النهاية.', 'icon' => 'fa-file-invoice-dollar'],
+        'total' => ['title' => 'ملخص المشتريات', 'subtitle' => 'قيمة فواتير الشراء ومرتجعات المورد والمدفوعات اليومية.', 'icon' => 'fa-chart-pie'],
+        'suppliers' => ['title' => 'المشتريات حسب المورد', 'subtitle' => 'قارن مشتريات كل مورد ومرتجعاته ومدفوعاته.', 'icon' => 'fa-truck'],
+        'products' => ['title' => 'المشتريات حسب المنتج', 'subtitle' => 'راجع كميات الشراء والمرتجعة وصافي تكلفة كل صنف.', 'icon' => 'fa-box'],
+        'payments' => ['title' => 'مدفوعات وأرصدة الموردين', 'subtitle' => 'تابع المشتريات والمرتجعات والمدفوعات ورصيد المورد.', 'icon' => 'fa-file-invoice-dollar'],
     ][$reportType];
     $reportRoutes = [
         'total' => route('purchase_report_total', ['startDate' => $startDate, 'endDate' => $endDate]),
@@ -95,12 +95,14 @@
         <a class="pr-tab {{ $reportType === 'payments' ? 'active' : '' }}" href="{{ $reportRoutes['payments'] }}"><i class="fas fa-file-invoice-dollar"></i> أرصدة الموردين</a>
     </nav>
 
-    <div class="pr-note"><i class="fas fa-info-circle ml-1"></i> تُحسب المشتريات بتاريخ الفاتورة. تشمل المدفوعات دفعة الفاتورة الأولى بتاريخها وأي سداد لاحق بتاريخ السداد، بعد استبعاد الفواتير وحركات السداد المحذوفة.</div>
+    <div class="pr-note"><i class="fas fa-info-circle ml-1"></i> تُحسب المشتريات بتاريخ الفاتورة والمرتجعات بتاريخ تسجيلها. صافي المشتريات = قيمة الفواتير − قيمة مرتجعات المورد. تشمل المدفوعات الدفعات الأولى والسداد اللاحق.</div>
 
     @if ($reportType === 'total')
         <section class="pr-kpis">
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-file-invoice"></i> فواتير الشراء</span><strong class="pr-kpi-value">{{ number_format($stats->invoice_count) }}</strong><small>خلال الفترة</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-cart-plus"></i> إجمالي المشتريات</span><strong class="pr-kpi-value">{{ number_format($stats->purchase_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-undo"></i> مرتجعات المورد</span><strong class="pr-kpi-value pr-due">{{ number_format($stats->return_amount, 2) }}</strong><small>{{ number_format($stats->return_count) }} مرتجع · ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-scale-balanced"></i> صافي المشتريات</span><strong class="pr-kpi-value">{{ number_format($stats->net_purchase_amount, 2) }}</strong><small>ج.م بعد المرتجعات</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-money-bill-wave"></i> إجمالي المدفوع</span><strong class="pr-kpi-value pr-paid">{{ number_format($stats->paid_amount, 2) }}</strong><small>ج.م خلال الفترة</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-hourglass-start"></i> مستحقات أول الفترة</span><strong class="pr-kpi-value">{{ number_format($stats->opening_payable, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-file-invoice-dollar"></i> مستحقات نهاية الفترة</span><strong class="pr-kpi-value pr-due">{{ number_format($stats->closing_payable, 2) }}</strong><small>ج.م</small></div>
@@ -108,12 +110,12 @@
         <section class="pr-card">
             <div class="pr-card-head"><div><h2>المشتريات والمدفوعات حسب اليوم</h2><p>المدفوعات تجمع الدفعات الأولى والسدادات اللاحقة المسجلة في التاريخ.</p></div><input type="search" class="form-control pr-search" data-table-search placeholder="ابحث بالتاريخ"></div>
             <div class="pr-table-wrap"><table class="pr-table table" id="purchaseTable">
-                <thead><tr><th>التاريخ</th><th>عدد الفواتير</th><th>قيمة المشتريات</th><th>دفعات أولى</th><th>سداد لاحق</th><th>إجمالي المدفوع</th></tr></thead>
+                <thead><tr><th>التاريخ</th><th>عدد الفواتير</th><th>قيمة المشتريات</th><th>قيمة المرتجعات</th><th>صافي المشتريات</th><th>دفعات أولى</th><th>سداد لاحق</th><th>إجمالي المدفوع</th></tr></thead>
                 <tbody>
                 @forelse ($dailyRows as $row)
-                    <tr><td class="pr-number">{{ $row->report_date }}</td><td>{{ $row->invoice_count }}</td><td class="pr-number">{{ number_format($row->purchase_amount, 2) }} ج.م</td><td class="pr-number">{{ number_format($row->invoice_paid, 2) }} ج.م</td><td class="pr-number">{{ number_format($row->later_payments, 2) }} ج.م</td><td class="pr-number pr-paid">{{ number_format($row->paid_amount, 2) }} ج.م</td></tr>
+                    <tr><td class="pr-number">{{ $row->report_date }}</td><td>{{ $row->invoice_count }}</td><td class="pr-number">{{ number_format($row->purchase_amount, 2) }} ج.م</td><td class="pr-number pr-due">{{ number_format($row->return_amount, 2) }} ج.م</td><td class="pr-number">{{ number_format($row->net_purchase_amount, 2) }} ج.م</td><td class="pr-number">{{ number_format($row->invoice_paid, 2) }} ج.م</td><td class="pr-number">{{ number_format($row->later_payments, 2) }} ج.م</td><td class="pr-number pr-paid">{{ number_format($row->paid_amount, 2) }} ج.م</td></tr>
                 @empty
-                    <tr><td colspan="6" class="pr-empty">لا توجد فواتير أو مدفوعات مسجلة خلال الفترة.</td></tr>
+                    <tr><td colspan="8" class="pr-empty">لا توجد فواتير أو مرتجعات أو مدفوعات مسجلة خلال الفترة.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -125,18 +127,20 @@
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-truck"></i> الموردون</span><strong class="pr-kpi-value">{{ number_format($stats->supplier_count) }}</strong><small>لهم حركة بالفترة</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-file-invoice"></i> الفواتير</span><strong class="pr-kpi-value">{{ number_format($stats->invoice_count) }}</strong><small>فاتورة شراء</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-cart-plus"></i> إجمالي المشتريات</span><strong class="pr-kpi-value">{{ number_format($stats->purchase_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-undo"></i> قيمة المرتجعات</span><strong class="pr-kpi-value pr-due">{{ number_format($stats->return_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-scale-balanced"></i> صافي المشتريات</span><strong class="pr-kpi-value">{{ number_format($stats->net_purchase_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-money-bill-wave"></i> إجمالي المدفوع</span><strong class="pr-kpi-value pr-paid">{{ number_format($stats->paid_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-chart-line"></i> متوسط الفاتورة</span><strong class="pr-kpi-value">{{ number_format($stats->invoice_count ? $stats->purchase_amount / $stats->invoice_count : 0, 2) }}</strong><small>ج.م</small></div>
         </section>
         <section class="pr-card">
             <div class="pr-card-head"><div><h2>مشتريات الموردين</h2><p>يشمل إجمالي المدفوع دفعة الفاتورة الأولى والسداد اللاحق خلال الفترة.</p></div><input type="search" class="form-control pr-search" data-table-search placeholder="ابحث باسم المورد أو الهاتف"></div>
             <div class="pr-table-wrap"><table class="pr-table table" id="purchaseTable">
-                <thead><tr><th>المورد</th><th>رقم الهاتف</th><th>عدد الفواتير</th><th>إجمالي المشتريات</th><th>دفعات أولى</th><th>سداد لاحق</th><th>إجمالي المدفوع</th></tr></thead>
+                <thead><tr><th>المورد</th><th>رقم الهاتف</th><th>عدد الفواتير</th><th>إجمالي المشتريات</th><th>مرتجعات المورد</th><th>صافي المشتريات</th><th>دفعات أولى</th><th>سداد لاحق</th><th>إجمالي المدفوع</th></tr></thead>
                 <tbody>
                 @forelse ($suppliers as $supplier)
-                    <tr><td><div class="pr-name"><strong>{{ $supplier->supplier_name }}</strong><small>كود المورد: {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->supplier_phone }}</td><td>{{ $supplier->invoice_count }}</td><td class="pr-number">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="pr-number">{{ number_format($supplier->invoice_paid, 2) }} ج.م</td><td class="pr-number">{{ number_format($supplier->later_payments, 2) }} ج.م</td><td class="pr-number pr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td></tr>
+                    <tr><td><div class="pr-name"><strong>{{ $supplier->supplier_name }}</strong><small>كود المورد: {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->supplier_phone }}</td><td>{{ $supplier->invoice_count }}</td><td class="pr-number">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="pr-number pr-due">{{ number_format($supplier->return_amount, 2) }} ج.م</td><td class="pr-number">{{ number_format($supplier->net_purchase_amount, 2) }} ج.م</td><td class="pr-number">{{ number_format($supplier->invoice_paid, 2) }} ج.م</td><td class="pr-number">{{ number_format($supplier->later_payments, 2) }} ج.م</td><td class="pr-number pr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td></tr>
                 @empty
-                    <tr><td colspan="7" class="pr-empty">لا توجد مشتريات أو مدفوعات للموردين خلال الفترة.</td></tr>
+                    <tr><td colspan="9" class="pr-empty">لا توجد مشتريات أو مرتجعات أو مدفوعات للموردين خلال الفترة.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -147,19 +151,23 @@
         <section class="pr-kpis">
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-box"></i> المنتجات المشترَاة</span><strong class="pr-kpi-value">{{ number_format($stats->product_count) }}</strong><small>صنف</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-cubes"></i> إجمالي الكمية</span><strong class="pr-kpi-value">{{ number_format($stats->quantity_purchased) }}</strong><small>وحدة</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-undo"></i> كمية مرتجعة</span><strong class="pr-kpi-value pr-due">{{ number_format($stats->quantity_returned) }}</strong><small>وحدة</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-boxes"></i> صافي الكمية</span><strong class="pr-kpi-value">{{ number_format($stats->net_quantity) }}</strong><small>وحدة</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-coins"></i> قيمة المشتريات</span><strong class="pr-kpi-value">{{ number_format($stats->purchase_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-receipt"></i> قيمة المرتجعات</span><strong class="pr-kpi-value pr-due">{{ number_format($stats->return_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-scale-balanced"></i> صافي المشتريات</span><strong class="pr-kpi-value">{{ number_format($stats->net_purchase_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-file-invoice"></i> الفواتير</span><strong class="pr-kpi-value">{{ number_format($stats->invoice_count) }}</strong><small>خلال الفترة</small></div>
-            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-calculator"></i> متوسط تكلفة الوحدة</span><strong class="pr-kpi-value">{{ number_format($stats->quantity_purchased ? $stats->purchase_amount / $stats->quantity_purchased : 0, 2) }}</strong><small>ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-calculator"></i> متوسط صافي تكلفة الوحدة</span><strong class="pr-kpi-value">{{ number_format($stats->net_quantity > 0 ? $stats->net_purchase_amount / $stats->net_quantity : 0, 2) }}</strong><small>ج.م بعد المرتجعات</small></div>
         </section>
         <section class="pr-card">
             <div class="pr-card-head"><div><h2>تفاصيل المشتريات حسب المنتج</h2><p>متوسط التكلفة مرجّح بالكمية، لضمان قراءة أدق عند اختلاف أسعار الفواتير.</p></div><input type="search" class="form-control pr-search" data-table-search placeholder="ابحث باسم المنتج أو كوده"></div>
             <div class="pr-table-wrap"><table class="pr-table table" id="purchaseTable">
-                <thead><tr><th>المنتج</th><th>عدد الفواتير</th><th>الكمية المشتراة</th><th>متوسط تكلفة الوحدة</th><th>إجمالي قيمة الشراء</th></tr></thead>
+                <thead><tr><th>المنتج</th><th>عدد الفواتير</th><th>الكمية المشتراة</th><th>كمية مرتجعة</th><th>صافي الكمية</th><th>متوسط تكلفة الوحدة</th><th>قيمة الشراء</th><th>قيمة المرتجع</th><th>صافي قيمة الشراء</th></tr></thead>
                 <tbody>
                 @forelse ($products as $product)
-                    <tr><td><div class="pr-name"><strong>{{ $product->product_name }}</strong><small>كود المنتج: {{ $product->product_id }}</small></div></td><td>{{ $product->invoice_count }}</td><td class="pr-number">{{ number_format($product->quantity_purchased) }}</td><td class="pr-number">{{ number_format($product->average_unit_cost, 2) }} ج.م</td><td class="pr-number">{{ number_format($product->purchase_amount, 2) }} ج.م</td></tr>
+                    <tr><td><div class="pr-name"><strong>{{ $product->product_name }}</strong><small>كود المنتج: {{ $product->product_id }}</small></div></td><td>{{ $product->invoice_count }}</td><td class="pr-number">{{ number_format($product->quantity_purchased) }}</td><td class="pr-number pr-due">{{ number_format($product->quantity_returned) }}</td><td class="pr-number">{{ number_format($product->net_quantity) }}</td><td class="pr-number">{{ number_format($product->average_unit_cost, 2) }} ج.م</td><td class="pr-number">{{ number_format($product->purchase_amount, 2) }} ج.م</td><td class="pr-number pr-due">{{ number_format($product->return_amount, 2) }} ج.م</td><td class="pr-number">{{ number_format($product->net_purchase_amount, 2) }} ج.م</td></tr>
                 @empty
-                    <tr><td colspan="5" class="pr-empty">لا توجد أصناف مشتراة خلال الفترة المحددة.</td></tr>
+                    <tr><td colspan="9" class="pr-empty">لا توجد أصناف مشتراة أو مرتجعة خلال الفترة المحددة.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -170,19 +178,20 @@
         <section class="pr-kpis">
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-hourglass-start"></i> مستحقات أول الفترة</span><strong class="pr-kpi-value">{{ number_format($stats->opening_payable, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-cart-plus"></i> مشتريات الفترة</span><strong class="pr-kpi-value">{{ number_format($stats->purchase_amount, 2) }}</strong><small>ج.م</small></div>
+            <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-undo"></i> مرتجعات الفترة</span><strong class="pr-kpi-value pr-due">{{ number_format($stats->return_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-money-bill-wave"></i> مدفوعات الفترة</span><strong class="pr-kpi-value pr-paid">{{ number_format($stats->paid_amount, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-file-invoice-dollar"></i> مستحقات آخر الفترة</span><strong class="pr-kpi-value pr-due">{{ number_format($stats->closing_payable, 2) }}</strong><small>ج.م</small></div>
             <div class="pr-kpi"><span class="pr-kpi-label"><i class="fas fa-truck"></i> الموردون</span><strong class="pr-kpi-value">{{ number_format($stats->supplier_count) }}</strong><small>لهم رصيد أو حركة</small></div>
         </section>
         <section class="pr-card">
-            <div class="pr-card-head"><div><h2>رصيد الموردين وحركة الفترة</h2><p>رصيد النهاية = رصيد البداية + مشتريات الفترة − المدفوعات المسجلة بالفترة.</p></div><input type="search" class="form-control pr-search" data-table-search placeholder="ابحث باسم المورد أو الهاتف"></div>
+            <div class="pr-card-head"><div><h2>رصيد الموردين وحركة الفترة</h2><p>رصيد النهاية = رصيد البداية + المشتريات − مرتجعات المورد − المدفوعات المسجلة بالفترة.</p></div><input type="search" class="form-control pr-search" data-table-search placeholder="ابحث باسم المورد أو الهاتف"></div>
             <div class="pr-table-wrap"><table class="pr-table table" id="purchaseTable">
-                <thead><tr><th>المورد</th><th>عدد الفواتير</th><th>رصيد أول الفترة</th><th>مشتريات الفترة</th><th>مدفوعات الفترة</th><th>رصيد آخر الفترة</th></tr></thead>
+                <thead><tr><th>المورد</th><th>عدد الفواتير</th><th>رصيد أول الفترة</th><th>مشتريات الفترة</th><th>مرتجعات المورد</th><th>مدفوعات الفترة</th><th>رصيد آخر الفترة</th></tr></thead>
                 <tbody>
                 @forelse ($suppliers as $supplier)
-                    <tr><td><div class="pr-name"><strong>{{ $supplier->supplier_name }}</strong><small>{{ $supplier->supplier_phone }} · كود {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->invoice_count }}</td><td class="pr-number">{{ number_format($supplier->opening_payable, 2) }} ج.م</td><td class="pr-number">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="pr-number pr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td><td class="pr-number pr-due">{{ number_format($supplier->closing_payable, 2) }} ج.م</td></tr>
+                    <tr><td><div class="pr-name"><strong>{{ $supplier->supplier_name }}</strong><small>{{ $supplier->supplier_phone }} · كود {{ $supplier->supplier_id }}</small></div></td><td>{{ $supplier->invoice_count }}</td><td class="pr-number">{{ number_format($supplier->opening_payable, 2) }} ج.م</td><td class="pr-number">{{ number_format($supplier->purchase_amount, 2) }} ج.م</td><td class="pr-number pr-due">{{ number_format($supplier->return_amount, 2) }} ج.م</td><td class="pr-number pr-paid">{{ number_format($supplier->paid_amount, 2) }} ج.م</td><td class="pr-number pr-due">{{ number_format($supplier->closing_payable, 2) }} ج.م</td></tr>
                 @empty
-                    <tr><td colspan="6" class="pr-empty">لا توجد أرصدة أو حركات للموردين خلال الفترة.</td></tr>
+                    <tr><td colspan="7" class="pr-empty">لا توجد أرصدة أو حركات للموردين خلال الفترة.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -190,7 +199,7 @@
         @if ($chartRows->isNotEmpty())<section class="pr-chart"><h2>أرصدة الموردين: أول الفترة وآخرها</h2><canvas id="purchaseChart"></canvas></section>@endif
     @endif
 
-    <p class="pr-footer-note">تُحتسب قيمة الشراء من تفاصيل الأصناف، والمدفوعات اللاحقة من سجل سداد الموردين النشط.</p>
+    <p class="pr-footer-note">تُحتسب قيمة المرتجعات من سجلات مرتجعات المشتريات النشطة بتاريخ تسجيلها، وتُخصم من صافي المشتريات ورصيد المورد.</p>
 </div>
 @endsection
 
@@ -216,7 +225,7 @@
         new Chart(document.getElementById('purchaseChart').getContext('2d'), {
             type: 'bar',
             data: { labels: @json($dailyRows->pluck('report_date')), datasets: [
-                { label: 'قيمة المشتريات', data: @json($dailyRows->pluck('purchase_amount')), backgroundColor: 'rgba(128, 88, 186, .7)', borderRadius: 4 },
+                { label: 'صافي المشتريات بعد المرتجعات', data: @json($dailyRows->pluck('net_purchase_amount')), backgroundColor: 'rgba(128, 88, 186, .7)', borderRadius: 4 },
                 { label: 'إجمالي المدفوع', data: @json($dailyRows->pluck('paid_amount')), backgroundColor: 'rgba(23, 105, 167, .65)', borderRadius: 4 }
             ] },
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
@@ -224,7 +233,7 @@
     @elseif (in_array($reportType, ['suppliers', 'products'], true) && $chartRows->isNotEmpty())
         new Chart(document.getElementById('purchaseChart').getContext('2d'), {
             type: 'bar',
-            data: { labels: @json($chartRows->pluck($reportType === 'suppliers' ? 'supplier_name' : 'product_name')), datasets: [{ label: 'قيمة المشتريات (ج.م)', data: @json($chartRows->pluck('purchase_amount')), backgroundColor: 'rgba(128, 88, 186, .7)', borderColor: '#8058ba', borderWidth: 1, borderRadius: 5 }] },
+            data: { labels: @json($chartRows->pluck($reportType === 'suppliers' ? 'supplier_name' : 'product_name')), datasets: [{ label: 'صافي المشتريات بعد المرتجعات (ج.م)', data: @json($chartRows->pluck('net_purchase_amount')), backgroundColor: 'rgba(128, 88, 186, .7)', borderColor: '#8058ba', borderWidth: 1, borderRadius: 5 }] },
             options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true } } }
         });
     @elseif ($reportType === 'payments' && $suppliers->isNotEmpty())
@@ -232,6 +241,7 @@
             type: 'bar',
             data: { labels: @json($suppliers->take(10)->pluck('supplier_name')), datasets: [
                 { label: 'رصيد أول الفترة', data: @json($suppliers->take(10)->pluck('opening_payable')), backgroundColor: 'rgba(104, 128, 162, .55)', borderRadius: 4 },
+                { label: 'مرتجعات المورد', data: @json($suppliers->take(10)->pluck('return_amount')), backgroundColor: 'rgba(215, 78, 85, .55)', borderRadius: 4 },
                 { label: 'رصيد آخر الفترة', data: @json($suppliers->take(10)->pluck('closing_payable')), backgroundColor: 'rgba(128, 88, 186, .75)', borderRadius: 4 }
             ] },
             options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true } } }

@@ -10,6 +10,7 @@ use App\Http\Controllers\purchasesController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\salesController;
 use App\Http\Controllers\SalesReturnsController;
+use App\Http\Controllers\PurchaseReturnsController;
 use App\Http\Controllers\categoryController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\ExpenseController;
@@ -115,6 +116,9 @@ Route::delete('purchases/purchase_invoices/{id}', [purchasesController::class, '
 Route::get('purchases/purchase_invoices/{invoice_id}/edit', [purchasesController::class, 'edit'])->name('purchase_invoices.edit');
 Route::post('purchases/update_purchase_invoices/{invoice_id}', [purchasesController::class, 'edit'])->name('editInvoice');
 Route::post('purchases/update_price_purchase_invoices/{invoice_id}', [purchasesController::class, 'editPricePurchaseInvoice'])->name('editPricePurchaseInvoice');
+Route::get('purchases/returns', [PurchaseReturnsController::class, 'index'])->name('purchases.returns.index');
+Route::post('purchases/returns', [PurchaseReturnsController::class, 'store'])->name('purchases.returns.store');
+Route::get('purchases/returns/{id}', [PurchaseReturnsController::class, 'show'])->name('purchases.returns.show');
 
 //Route::post('purchases/update_purchase_invoices/{invoice_id}', [PurchasesController::class, 'edit'])->name('editInvoice');
 
@@ -167,6 +171,7 @@ Route::get('customers/credit_customers', [CustomersController::class, 'creditCus
 
 // reports routes
 Route::get('reports/reports_main_page', [ReportsController::class, 'index'])->name('home_reports');
+Route::get('reports/summary', [ReportsController::class, 'consolidatedSummary'])->name('reports.consolidated');
 Route::get('reports/sub_reports/sales_per_product', [ReportsController::class, 'salesPerPeriod'])->name('sales_per_product');
 Route::get('reports/sub_reports/total_sales', [ReportsController::class, 'totalSales'])->name('total_sales');
 Route::get('reports/sub_reports/sales_per_customer', [ReportsController::class, 'salesPerCustomer'])->name('salesPerCustomer');
